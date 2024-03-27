@@ -1,15 +1,15 @@
 import Social from "@/components/social";
 
 export default function () {
-  const this_web_url = process.env.THIS_WEB_URL;
+  const this_web_url = process.env.NEXT_PUBLIC_THIS_WEB_URL;
   return (
     <section>
       <div className="w-screen flex-col px-6 py-20 lg:flex lg:px-10 xl:px-24">
         <div className="lg:flex lg:flex-row lg:justify-between">
           <div>
-            <p>SumAny</p>
+            <p>{process.env.NEXT_PUBLIC_WEB_NAME}</p>
             <p className="font-inter mt-4 max-w-[350px] text-base font-light text-gray-500">
-              YouTube视频总结
+              {process.env.NEXT_PUBLIC_WEB_DESCRIPTION}
             </p>
             <div className="mb-8 mt-6">{/* <Social /> */}</div>
           </div>
@@ -28,7 +28,7 @@ export default function () {
           <div className="mt-10 flex flex-col lg:mt-0">
             <div className="mb-4 flex flex-row items-center">
               <p className="block">联系作者: </p>
-              <p className="font-inter ml-4 text-black">support@sumany.pro</p>
+              <p className="font-inter ml-4 text-black">support@{process.env.NEXT_PUBLIC_THIS_WEB_URL}</p>
             </div>
           </div>
         </div>
@@ -37,12 +37,12 @@ export default function () {
           <p className="font-inter text-center text-sm text-gray-500 lg:mt-0">
             © Copyright 2024.{" "}
             <a
-              href={"http://"+this_web_url}
+              href={"https://"+this_web_url}
               target="_blank"
               className="text-primary hidden md:inline-block"
             >
-              {"http://"+this_web_url}
-            </a>{" "}
+              {"https://"+this_web_url}
+            </a>
             All rights reserved.
           </p>
         </div>

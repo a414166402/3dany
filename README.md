@@ -1,27 +1,26 @@
-# AI Cover
+# 3D Any
 
-AI Cover Generator by [aicover.design](https://aicover.design)
+3D Any Generator by [3dany.com](https://3dany.com)
 
 [中文说明](/README_CN.md)
 
 ## Live Demo
 
-[https://aicover.design](https://aicover.design)
+[https://3dany.com](https://3dany.com)
 
-![demo](./preview.png)
 
 ## Quick Start
 
 1. clone project
 
 ```shell
-git clone https://github.com/all-in-aigc/aicover
+git clone https://github.com/a414166402/3dany
 ```
 
 2. install dependencies
 
 ```shell
-cd aicover
+cd 3dany
 pnpm install
 ```
 
@@ -75,10 +74,4 @@ open `http://localhost:3000` for preview
 - [node-postgres](https://node-postgres.com/) for data processing
 - [tailwindcss](https://tailwindcss.com/) for page building
 
-## Other Things
 
-you can contact me at Twitter: https://twitter.com/idoubicc
-
-if this project is helpful to you, buy me a coffee.
-
-<a href="https://www.buymeacoffee.com/idoubi" target="_blank"><img src="https://cdn.buymeacoffee.com/buttons/default-orange.png" alt="Buy Me A Coffee" height="41" width="174"></a>

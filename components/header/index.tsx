@@ -30,7 +30,7 @@ export default function () {
                 alt="logo"
               />
               <span className="font-bold text-primary text-2xl">
-                SumAny
+                {process.env.NEXT_PUBLIC_WEB_NAME}
               </span>
             </a>
 
