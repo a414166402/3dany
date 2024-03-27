@@ -7,7 +7,7 @@ import { Cover } from "@/types/cover";
 import Image from "next/image";
 
 export default function () {
-  const { covers,  } = useContext(AppContext);
+  const { covers, setCovers } = useContext(AppContext);
   const [loading, setLoading] = useState(false);
 
   const fetchCovers = async (page: number) => {
