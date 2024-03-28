@@ -6,6 +6,7 @@ import { pipeline, env, DepthEstimationPipeline, RawImage} from "@a414166402/3da
 import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import * as ONNX_WEB from 'onnxruntime-web';
+import { toast } from "sonner";
 
 //修复ONNX核心 强制使用web环境
 let ONNX;
@@ -165,50 +166,32 @@ function videoDecodeFinish(rawImgArr:any[]) {
 }
 async function processBatch(batch:any,batchOption:any) {
     console.warn("【processBatch】batch"+batch)
-
-    // 请求获取深度图 
-    const start = performance.now();
-    let depth_estimator = await getDepthEstimator();
-    if(!depth_estimator)
+    try
     {
-        console.error("processBatch:get depth_estimator failed!!!")
-        return;
-    }
-    const depthResults = await depth_estimator(batch);
-    const end = performance.now();
-    let webGPUTime = end - start;
-    console.warn("获取深度图成功:" + depthResults)
-    console.warn(executionProvidersStr+"耗时:" + Math.round(webGPUTime) + 'ms')
-    curStatus+=perStatus;
-    Number(curStatus.toFixed(2));
-    setStatus("Loading......."+curStatus+"%........")
-    //兼容只有一张图片的情况 分批处理的时候有可能会出现这种情况
-    if(!depthResults)
-    {
-        console.warn("【processBatch】处理的图片返回结果depthResults有问题")
-    }
-    else if(!Array.isArray(depthResults))
-    {
-        const depth = depthResults.depth; // 假设返回的对象有一个'depth'属性
-        // 下载深度图到本地
-        if (isSaveDepth && depth.save) {
-            depth.save('depth' + batchOption.id + '.png');
+        // 请求获取深度图 
+        const start = performance.now();
+        let depth_estimator = await getDepthEstimator();
+        if(!depth_estimator)
+        {
+            console.error("processBatch:get depth_estimator failed!!!")
+            return;
         }
-        console.warn("获取深度图【", batchOption.id, "】成功");
-        console.warn(depth);
-        if (tempObj && tempObj[batchOption.id]) { // 确保tempObj存在并且有对应的id属性
-            tempObj[batchOption.id][1] = depth;
+        const depthResults = await depth_estimator(batch);
+        const end = performance.now();
+        let webGPUTime = end - start;
+        console.warn("获取深度图成功:" + depthResults)
+        console.warn(executionProvidersStr+"耗时:" + Math.round(webGPUTime) + 'ms')
+        curStatus+=perStatus;
+        Number(curStatus.toFixed(2));
+        setStatus("Loading......."+curStatus+"%........")
+        //兼容只有一张图片的情况 分批处理的时候有可能会出现这种情况
+        if(!depthResults)
+        {
+            console.warn("【processBatch】处理的图片返回结果depthResults有问题")
         }
-        batchOption.id++;
-        // return [id, depth];
-    }
-    else
-    {   
-        console.warn("depthResults:"+depthResults)
-        console.warn("Object.keys(depthResults).length:"+Object.keys(depthResults).length)
-        // 依次处理每个深度结果
-        const processedResults = depthResults.map((depthData, index) => {
-            const depth = depthData.depth; // 假设返回的对象有一个'depth'属性
+        else if(!Array.isArray(depthResults))
+        {
+            const depth = depthResults.depth; // 假设返回的对象有一个'depth'属性
             // 下载深度图到本地
             if (isSaveDepth && depth.save) {
                 depth.save('depth' + batchOption.id + '.png');
@@ -219,10 +202,33 @@ async function processBatch(batch:any,batchOption:any) {
                 tempObj[batchOption.id][1] = depth;
             }
             batchOption.id++;
-            return [batchOption.id, depth];
-        });
+            // return [id, depth];
+        }
+        else
+        {   
+            console.warn("depthResults:"+depthResults)
+            console.warn("Object.keys(depthResults).length:"+Object.keys(depthResults).length)
+            // 依次处理每个深度结果
+            const processedResults = depthResults.map((depthData, index) => {
+                const depth = depthData.depth; // 假设返回的对象有一个'depth'属性
+                // 下载深度图到本地
+                if (isSaveDepth && depth.save) {
+                    depth.save('depth' + batchOption.id + '.png');
+                }
+                console.warn("获取深度图【", batchOption.id, "】成功");
+                console.warn(depth);
+                if (tempObj && tempObj[batchOption.id]) { // 确保tempObj存在并且有对应的id属性
+                    tempObj[batchOption.id][1] = depth;
+                }
+                batchOption.id++;
+                return [batchOption.id, depth];
+            });
+        }
+    }catch(err:any)
+    {
+        toast.error("【processBatch】failed！！！");
+        toast.error(err);
     }
-
 }
 async function depthRawImg(rawImgArr:any[]) {
     console.warn("开始获取深度图");
