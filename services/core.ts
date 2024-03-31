@@ -1,13 +1,13 @@
-import { pipeline, env, DepthEstimationPipeline, RawImage} from "@a414166402/3dany";
-// console.log("e-------------nv.backends.onnx-=--------");
-// console.log(env);
-// console.log(env.backends);
-// console.log(env.backends.onnx);
+import { pipeline, env, DepthEstimationPipeline, RawImage } from "@a414166402/3dany";
+// log("e-------------nv.backends.onnx-=--------");
+// log(env);
+// log(env.backends);
+// log(env.backends.onnx);
 import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import * as ONNX_WEB from 'onnxruntime-web';
 import { toast } from "sonner";
-
+import { log, warn, error } from '@/lib/log';
 //修复ONNX核心 强制使用web环境
 let ONNX;
 const ONNX_MODULES = new Map();
@@ -30,67 +30,66 @@ if (ONNX?.env?.wasm) {
 // ONNX.env.wasm = { proxy: true };
 // ONNX.env.wasmPaths = ['https://cdn.jsdelivr.net/npm/onnxruntime-web@1.17.1/dist/'];
 ONNX.env.numThreads = 1;
-console.warn("ONNX.env:")
-console.warn(ONNX.env)
 env.backends.onnx = ONNX.env;
-
-console.warn("env:")
-console.warn(env)
-console.warn("env.backends:")
-console.warn(env.backends)
-console.warn("env.backends.onnx:")
-console.warn(env.backends.onnx)
 env.allowLocalModels = false;
 env.experimental.useWebGPU = true;
-let setStatus:any;
-export function setInputSetStatus(fun:any)
-{
+let setStatus: any;
+export function setInputSetStatus(fun: any) {
     setStatus = fun;
-}
-//初始化onnx后端配置
-export function initEnv()
-{
-
 }
 // Constants
 const MAX_DEPTH_IMG_BATCH_SIZE = 1;//处理一次深度图的最大打包数量 
 // const EXAMPLE_URL = 'https://video.twimg.com/ext_tw_video/1751214622923976704/pu/vid/avc1/720x1280/pXx4rkujEbWicsv6.mp4?tag=12';
 const EXAMPLE_URL = 'https://huggingface.co/datasets/Xenova/transformers.js-docs/resolve/main/bread_small.png';
-const DEFAULT_SCALE = 0.75;
-export function getDefaultScale(): number{
-    return DEFAULT_SCALE;
-}
+
 let USE_WEBGPU = true;
-let OUT_FPS = 12;//输出视频的每秒帧数
-let OUT_TOTAL_FRAME = 60;//输出视频的总帧数
-let OUT_TOTAL_SECONDS = OUT_TOTAL_FRAME / OUT_FPS;//输出视频的总秒数
-let OUT_START_SECONDS = 70;//从第几秒开始截取视频
-let OUT_START_FRAME = OUT_START_SECONDS * OUT_FPS;//从第几帧数开始截取视频
-let VIDEO_TOTAL_SECONDS = 0;//视频的总秒数
-let MAX_DIMENSION = 500;//400;//锁定传入视频的最大宽高最大值
+let DEFAULT_SCALE: number;
+let IS_DEV_MODE: number;
+let OUT_FPS: number;//输出视频的每秒帧数
+let OUT_TOTAL_FRAME: number;//输出视频的总帧数
+let OUT_TOTAL_SECONDS: number;//输出视频的总秒数
+let OUT_START_SECONDS: number;//从第几秒开始截取视频
+let OUT_START_FRAME: number;//从第几帧数开始截取视频
+let VIDEO_TOTAL_SECONDS: number = 0;//视频的总秒数
+let MAX_DIMENSION: number;//400;//锁定传入视频的最大宽高最大值
 let videoWidth = 0;
 let videoHeight = 0;
-let setImageMap:any;//动态设置图片纹理的方法
-export function setSetImageMap(map:any) {
-    setImageMap = map;
+let setImageMap: any;//动态设置图片纹理的方法
+//读取.env.local数据初始化参数
+IS_DEV_MODE = Number(process.env.NEXT_PUBLIC_IS_DEV_MODE);
+DEFAULT_SCALE = Number(process.env.NEXT_PUBLIC_DEFAULT_SCALE);
+OUT_FPS = Number(process.env.NEXT_PUBLIC_OUT_FPS);
+OUT_TOTAL_FRAME = Number(process.env.NEXT_PUBLIC_OUT_TOTAL_FRAME);
+OUT_TOTAL_SECONDS = OUT_TOTAL_FRAME / OUT_FPS;
+OUT_START_SECONDS = Number(process.env.NEXT_PUBLIC_OUT_START_SECONDS);
+OUT_START_FRAME = OUT_START_SECONDS * OUT_FPS;
+MAX_DIMENSION = Number(process.env.NEXT_PUBLIC_MAX_DIMENSION);
+export function getDefaultScale(): number {
+    return DEFAULT_SCALE;
 }
-let setDisplacementMap:any;//动态设置图片材质高度的方法
-export function setSetDisplacementMap(map:any) {
-    setDisplacementMap = map;
+export function getIsDevMode(): boolean {
+    return IS_DEV_MODE == 1 ? true : false;
 }
-let setDisplacementScale;//动态设置图片材质缩放大小的方法
-export function setSetDisplacementScale(map:any) {
-    setDisplacementScale = map;
+export function setSetImageMap(map: any) {
+    setImageMap(map);
+}
+let setDisplacementMap: any;//动态设置图片材质高度的方法
+export function setSetDisplacementMap(map: any) {
+    setDisplacementMap(map);
+}
+let setDisplacementScale: any;//动态设置图片材质缩放大小的方法
+export function setSetDisplacementScale(scale: any) {
+    setDisplacementScale(scale);
 }
 let setImageOpacity;//动态设置图片指定点的透明度
 
 let video: HTMLVideoElement;
-let offscreenCanvas:any;
-let canvas:any;
-export function getCanvas():any{
+let offscreenCanvas: any;
+let canvas: any;
+export function getCanvas(): any {
     return canvas;
 }
-export function setCanvas(cv:any){
+export function setCanvas(cv: any) {
     canvas = cv;
 }
 //    {id:[img,depth,texture]}
@@ -104,35 +103,32 @@ const QUANTIZED = false;
 let executionProvidersStr = USE_WEBGPU ? 'webgpu' : 'wasm';
 let depth_estimator: DepthEstimationPipeline | null = null;
 //获取depth_estimator单例
-export async function getDepthEstimator() 
-{
-    if(!depth_estimator)
-    {
+export async function getDepthEstimator() {
+    if (!depth_estimator) {
         depth_estimator = await pipeline('depth-estimation', 'Xenova/depth-anything-small-hf', {
             quantized: QUANTIZED,
             session_options: {
                 executionProviders: [executionProvidersStr]
             }
-          });
+        });
     }
 
     return depth_estimator;
 }
 let isPrepareDepth = false;
-export async function prepareDepth()
-{
+export async function prepareDepth() {
     //确保只执行一次
-    if(isPrepareDepth) return;
+    if (isPrepareDepth) return;
     isPrepareDepth = true;
-    console.warn("-------------------------prepareDepth------------------------------")
-    const [w,h] = [224, 224];
+    if (IS_DEV_MODE == 1)
+        warn("-------------------------prepareDepth------------------------------")
+    const [w, h] = [224, 224];
     const c = 3;
     const arr = new Uint8ClampedArray(w * h * c);
     let depth_estimator = await getDepthEstimator();
-    await depth_estimator(new RawImage(arr,w,h,c));
+    await depth_estimator(new RawImage(arr, w, h, c));
 }
-function initTempObj()
-{
+function initTempObj() {
     for (let i = 1; i <= OUT_TOTAL_FRAME; i++) {
         tempObj[i] = [];
     }
@@ -143,7 +139,7 @@ function getOffCanvas() {
     offscreenCanvas = createCanvas();
     return offscreenCanvas;
 }
-async function getFrameAsRawImage(imageData:any) {
+async function getFrameAsRawImage(imageData: any) {
 
     // 封装为RawImage对象
     const data = imageData.data;
@@ -153,61 +149,56 @@ async function getFrameAsRawImage(imageData:any) {
 
     return new RawImage(data, width, height, channels);
 }
-function videoDecodeFinish(rawImgArr:any[]) {
+function videoDecodeFinish(rawImgArr: any[]) {
     //先按原来的异步阻塞来实现获取深度图 并保存到tempObj里面 建议后面采用多线程或者队列来批量调用深度化图片接口
     // 主线程逻辑  
     depthRawImg(rawImgArr).then(
         () => {
-            console.warn('done');
+            warn('done');
             // initWeb();
             refreshImg(tempObj[1][2], tempObj[1][1])
         }
     );
 }
-async function processBatch(batch:any,batchOption:any) {
-    console.warn("【processBatch】batch"+batch)
-    try
-    {
+async function processBatch(batch: any, batchOption: any) {
+    warn("【processBatch】batch" + batch)
+    try {
         // 请求获取深度图 
         const start = performance.now();
         let depth_estimator = await getDepthEstimator();
-        if(!depth_estimator)
-        {
-            console.error("processBatch:get depth_estimator failed!!!")
+        if (!depth_estimator) {
+            error("processBatch:get depth_estimator failed!!!")
             return;
         }
         const depthResults = await depth_estimator(batch);
         const end = performance.now();
         let webGPUTime = end - start;
-        console.warn("获取深度图成功:" + depthResults)
-        console.warn(executionProvidersStr+"耗时:" + Math.round(webGPUTime) + 'ms')
-        curStatus+=perStatus;
+        warn("获取深度图成功:" + depthResults)
+        warn(executionProvidersStr + "耗时:" + Math.round(webGPUTime) + 'ms')
+        curStatus += perStatus;
         Number(curStatus.toFixed(2));
-        setStatus("Loading......."+curStatus+"%........")
+        setStatus("Loading......." + curStatus + "%........")
         //兼容只有一张图片的情况 分批处理的时候有可能会出现这种情况
-        if(!depthResults)
-        {
-            console.warn("【processBatch】处理的图片返回结果depthResults有问题")
+        if (!depthResults) {
+            warn("【processBatch】处理的图片返回结果depthResults有问题")
         }
-        else if(!Array.isArray(depthResults))
-        {
+        else if (!Array.isArray(depthResults)) {
             const depth = depthResults.depth; // 假设返回的对象有一个'depth'属性
             // 下载深度图到本地
             if (isSaveDepth && depth.save) {
                 depth.save('depth' + batchOption.id + '.png');
             }
-            console.warn("获取深度图【", batchOption.id, "】成功");
-            console.warn(depth);
+            warn("获取深度图【" + batchOption.id + "】成功");
+            warn(depth);
             if (tempObj && tempObj[batchOption.id]) { // 确保tempObj存在并且有对应的id属性
                 tempObj[batchOption.id][1] = depth;
             }
             batchOption.id++;
             // return [id, depth];
         }
-        else
-        {   
-            console.warn("depthResults:"+depthResults)
-            console.warn("Object.keys(depthResults).length:"+Object.keys(depthResults).length)
+        else {
+            warn("depthResults:" + depthResults)
+            warn("Object.keys(depthResults).length:" + Object.keys(depthResults).length)
             // 依次处理每个深度结果
             const processedResults = depthResults.map((depthData, index) => {
                 const depth = depthData.depth; // 假设返回的对象有一个'depth'属性
@@ -215,8 +206,8 @@ async function processBatch(batch:any,batchOption:any) {
                 if (isSaveDepth && depth.save) {
                     depth.save('depth' + batchOption.id + '.png');
                 }
-                console.warn("获取深度图【", batchOption.id, "】成功");
-                console.warn(depth);
+                warn("获取深度图【" + batchOption.id + "】成功");
+                warn(depth);
                 if (tempObj && tempObj[batchOption.id]) { // 确保tempObj存在并且有对应的id属性
                     tempObj[batchOption.id][1] = depth;
                 }
@@ -224,28 +215,27 @@ async function processBatch(batch:any,batchOption:any) {
                 return [batchOption.id, depth];
             });
         }
-    }catch(err:any)
-    {
+    } catch (err: any) {
         toast.error("【processBatch】failed！！！");
         toast.error(err);
     }
 }
-async function depthRawImg(rawImgArr:any[]) {
-    console.warn("开始获取深度图");
+async function depthRawImg(rawImgArr: any[]) {
+    warn("开始获取深度图");
     try {
         const start = performance.now();
-        let batchOption = {id:1}
+        let batchOption = { id: 1 }
         for (let i = 0; i < rawImgArr.length; i += MAX_DEPTH_IMG_BATCH_SIZE) {
             const batch = rawImgArr.slice(i, i + MAX_DEPTH_IMG_BATCH_SIZE);
-            await processBatch(batch,batchOption);
-            console.warn(`已完成第 ${(i / MAX_DEPTH_IMG_BATCH_SIZE) + 1} 批处理`);
+            await processBatch(batch, batchOption);
+            warn(`已完成第 ${(i / MAX_DEPTH_IMG_BATCH_SIZE) + 1} 批处理`);
         }
         const end = performance.now();
         let depthTime = end - start;
-        console.warn(executionProvidersStr+"总耗时:" + Math.round(depthTime) + 'ms')
+        warn(executionProvidersStr + "总耗时:" + Math.round(depthTime) + 'ms')
         return true;
     } catch (err) {
-        console.error("深度图请求处理失败！err:", err);
+        error("深度图请求处理失败！err:" + err);
         return []; // 返回一个空数组表示失败
     }
 }
@@ -269,123 +259,117 @@ export function playDepthImg() {
         }
     }, 1000 / OUT_FPS);
 }
-function refreshImg(texture:any,depth:any) {
-    try
-    {
+function refreshImg(texture: any, depth: any) {
+    try {
         setImageMap(texture)
         setDisplacementMap(depth.toCanvas());
-    }catch(e)
-    {
-        console.error("【refreshImg】:"+e);
+    } catch (e) {
+        error("【refreshImg】:" + e);
     }
 }
 // 设置场景
-function setupScene(canvasHeight: number,canvasWeight: number) {
-    console.warn("【setupScene】");
+function setupScene(canvasHeight: number, canvasWeight: number) {
+    warn("【setupScene】");
     //创建新的画布 Create new scene
     const canvas = document.createElement('canvas');
     const width = canvas.width = canvasWeight;
     const height = canvas.height = canvasHeight;
-  
+
     const scene = new THREE.Scene();
-  
+
     //添加摄像头到场景 Create camera and add it to the scene
     const camera = new THREE.PerspectiveCamera(30, width / height, 0.01, 10);
     camera.position.z = 2.8;
     scene.add(camera);
-  
+
     const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });//,depthTexture: true,alpha: true
     renderer.setSize(width, height);
     renderer.setPixelRatio(window.devicePixelRatio);
-  
+
     //添加自然光照 Add ambient light
     const light = new THREE.AmbientLight(0xffffff, 2);
     scene.add(light);
-  
+
     const material = new THREE.MeshStandardMaterial({
         // map: texture,
         side: THREE.DoubleSide,
         // transparent: true
     });
-  
+
     material.displacementScale = getDefaultScale();
-  
+
     //裁切几何体指定点
     // material.needsUpdate = true;
     // material.alphaMap = alphaMask;
     // material.clipping = true;
-  
+
     // //动态隐藏指定点显示
     // setImageOpacity = (alphaMap)=>
     // {
-    //     console.warn("alphaMap:")
-    //     console.warn(alphaMap)
+    //     warn("alphaMap:")
+    //     warn(alphaMap)
     //     material.alphaMap = alphaMap; 
     //     material.transparent = true;
     // }
-  
+
     //动态设置纹理
-    setSetImageMap((tex:any) => {
+    setImageMap = (tex: any) => {
         material.map = tex;
         material.needsUpdate = true;
-    })
+    }
     //动态设置材质高度
-    setSetDisplacementMap((canvas:any) => {
+    setDisplacementMap = (canvas: any) => {
         material.displacementMap = new THREE.CanvasTexture(canvas);
         material.needsUpdate = true;
-    })
+    }
     //动态设置材质比例
-    setSetDisplacementScale((scale:any) => {
+    setDisplacementScale = (scale: any) => {
         material.displacementScale = scale;
         material.needsUpdate = true;
-    })
-  
+    }
+
     //自适配图片面板大小 并添加到场景中 Create plane and rescale it so that max(w, h) = 1
-    const [pw, ph]  = videoWidth > videoHeight ? [1, videoHeight / videoWidth] : [videoWidth / videoHeight, 1];
+    const [pw, ph] = videoWidth > videoHeight ? [1, videoHeight / videoWidth] : [videoWidth / videoHeight, 1];
     const geometry = new THREE.PlaneGeometry(pw, ph, videoWidth, videoHeight);
     const plane = new THREE.Mesh(geometry, material);
     scene.add(plane);
-  
+
     //添加摄像头控制器 Add orbit controls
     const controls = new OrbitControls(camera, renderer.domElement);
     controls.enableDamping = true;
-  
+
     //渲染场景和摄像头 更新控制器
     renderer.setAnimationLoop(() => {
         renderer.render(scene, camera);
         controls.update();
     });
-  
+
     //添加摄像头刷新事件
     window.addEventListener('resize', () => {
         const width = canvasWeight;
         const height = canvasHeight;
-  
+
         camera.aspect = width / height;
         camera.updateProjectionMatrix();
-  
+
         renderer.setSize(width, height);
     }, false);
-  
+
     return canvas;
 }
 let treeSceneNode: any;
-export function setTreeSceneNode(node:any)
-{
+export function setTreeSceneNode(node: any) {
     treeSceneNode = node;
 }
-function initCanvas()
-{
-    if(!getCanvas())
-    {
+function initCanvas() {
+    if (!getCanvas()) {
         // canvas = setupScene(containerRef.current.clientHeight,containerRef.current.clientWidth)
-        console.warn(treeSceneNode)
-        canvas = setupScene(720,1280)
+        warn(treeSceneNode)
+        canvas = setupScene(720, 1280)
         setCanvas(canvas);
         treeSceneNode.innerHTML = '';
         treeSceneNode.append(getCanvas());
-    }else
-    {
+    } else {
         //todo update canvas
     }
 }
@@ -394,9 +378,8 @@ let perStatus: number;
 //当前进度
 let curStatus: number;
 //处理上传的视频文件
-export async function dealVideo(file: any)
-{
-    let rawImgArr:any[] = [];
+export async function dealVideo(file: any) {
+    let rawImgArr: any[] = [];
     //init tempObj
     initTempObj()
 
@@ -409,13 +392,13 @@ export async function dealVideo(file: any)
     video.playsInline = true;
     video.addEventListener('loadedmetadata', async (e) => {
         let video = e.currentTarget as HTMLVideoElement;
-        if(!video) return;
+        if (!video) return;
         videoWidth = video["videoWidth"];
         videoHeight = video["videoHeight"];
         //拿到视频尺寸立即初始化Canvas
         initCanvas();
         // 计算等比例缩放因子
-        const scaleFactor = MAX_DIMENSION==-1?1:(Math.min(MAX_DIMENSION / videoWidth, MAX_DIMENSION / videoHeight));
+        const scaleFactor = MAX_DIMENSION == -1 ? 1 : (Math.min(MAX_DIMENSION / videoWidth, MAX_DIMENSION / videoHeight));
 
         // 如果需要，应用缩放因子
         if (scaleFactor < 1) {
@@ -450,7 +433,7 @@ export async function dealVideo(file: any)
             }
             // 设置视频当前播放位置为输出开始时间
             video.currentTime = OUT_START_SECONDS;
-            let rawPerStatus = 100/(OUT_TOTAL_FRAME*2);
+            let rawPerStatus = 100 / (OUT_TOTAL_FRAME * 2);
             perStatus = Number(rawPerStatus.toFixed(2));
             curStatus = 0;
             for (let i = 0; i < OUT_TOTAL_FRAME; i++) {
@@ -476,30 +459,30 @@ export async function dealVideo(file: any)
                 const rawImg = await getFrameAsRawImage(imageData);
                 if (rawImg) {
                     rawImgArr.push(rawImg);
-                    console.warn("push:");
-                    console.warn(rawImg);
+                    warn("push:");
+                    warn(rawImg);
                 }
                 // 将canvas转换为THREE.Texture
                 // 从OffscreenCanvas创建ImageBitmap
                 const imageBitmap = await createImageBitmap(offscreenCanvas);
                 const texture = new THREE.Texture(imageBitmap);
                 texture.needsUpdate = true; // 当使用canvas作为纹理时，这个属性需要被设置为true
-                console.log('Texture created from canvas:', texture);
+                log('Texture created from canvas:' + texture);
 
                 //init tempObj
                 tempObj[i + 1] = [];
                 if (!isLoadTexture) {
                     // let url = "./" + i + ".jpg";
                     // let texture2 = new THREE.TextureLoader().load(url);
-                    // console.warn("【" + (i + 1) + "】Texture本地加载成功")
-                    // console.warn(texture2)
+                    // warn("【" + (i + 1) + "】Texture本地加载成功")
+                    // warn(texture2)
                     texture.colorSpace = THREE.SRGBColorSpace;
                     tempObj[i + 1][2] = texture;
-                    console.warn("【" + (i + 1) + "】Texture获取成功")
-                    console.warn(texture)
-                    curStatus+=perStatus;
+                    warn("【" + (i + 1) + "】Texture获取成功")
+                    warn(texture)
+                    curStatus += perStatus;
                     Number(curStatus.toFixed(2));
-                    setStatus("Loading......."+curStatus+"%........")
+                    setStatus("Loading......." + curStatus + "%........")
                 }
 
                 // 设置下一帧的时间

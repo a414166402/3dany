@@ -1,14 +1,14 @@
 "use client";
 
-import { useState, useRef, useEffect} from "react";
+import { useState, useRef, useEffect } from "react";
 import Head from 'next/head';
 import ThreeScene from "../threeScene/threeScene";
 import { dealVideo } from "@/services/core"
 import { prepareDepth, setInputSetStatus } from "@/services/core"
+import { log, warn, error } from '@/lib/log';
 export default function () {
   // 状态管理
   const [status, setStatus] = useState('Warming up...');
-
   useEffect(() => {
     // 定义一个异步函数来进行你的异步操作
     const loadModel = async () => {
@@ -22,7 +22,7 @@ export default function () {
   // 处理文件上传
   const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     setStatus("Uploading...");
-    if(!e || !e.target || !e.target.files) return;
+    if (!e || !e.target || !e.target.files) return;
     const file = e.target.files[0];
     if (!file) {
       setStatus("No file selected.");
@@ -31,7 +31,7 @@ export default function () {
 
     // 这里添加上传逻辑
     // 例如，使用 FormData 上传到服务器或处理文件
-    console.log(file);
+    log(file);
 
     // 假设上传成功
     const reader = new FileReader();
@@ -87,7 +87,7 @@ export default function () {
         </label>
       </div>
       <div id="container2" className="hidden relative flex flex-col items-center justify-center w-full sm:w-[50vw] md:w-[75vw] lg:max-w-[1080px] h-[calc(100vw*2/3)] sm:h-[calc(50vw*2/3)] md:h-[calc(75vw*2/3)] lg:max-h-[720px] border-2 border-dashed border-gray-300 rounded-lg overflow-hidden mt-4 bg-cover bg-center bg-no-repeat">
-          <ThreeScene/>
+        <ThreeScene />
       </div>
       <div id="status" className="min-h-[16px] my-2">{status}</div>
       <button id="upload-again-btn" type="button" className="hidden" onClick={handleUploadAgain}>
