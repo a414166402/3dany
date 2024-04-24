@@ -86,7 +86,7 @@ let curStatus: number;
 let firstCanvasWidth: number;
 let firstCanvasHeight: number;
 
-export function setGUI(temp_gui: GUI, params: any, relightMode: BooleanController) {
+export function setGUI(temp_gui: GUI, params: any, relightMode: any) {
     gui = temp_gui;
     guiParams = params;
     gui_relightMode = relightMode;
@@ -614,7 +614,7 @@ function setCamera(isOrthographicMode: boolean,cameraType: string) {
     if(cameraType=="main"){
         camera = curCamera;
     }else{
-        uiCamera = curCamera;
+        uiCamera = curCamera as THREE.OrthographicCamera;
     }
 }
 function setControl() {
