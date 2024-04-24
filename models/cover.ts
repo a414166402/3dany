@@ -2,6 +2,7 @@ import { QueryResult, QueryResultRow } from "pg";
 
 import { Cover } from "@/types/cover";
 import { getDb } from "./db";
+import { log, warn, error } from '@/lib/log';
 
 export async function insertCover(cover: Cover) {
   const db = getDb();
@@ -97,7 +98,7 @@ export async function findCoverById(id: number): Promise<Cover | undefined> {
     .single();
 
     if (coverError || !coverData) {
-      console.error(coverError);
+      error(coverError);
       return undefined;
     }
 
@@ -109,7 +110,7 @@ export async function findCoverById(id: number): Promise<Cover | undefined> {
       .single();
 
     if (userError) {
-      console.error(userError);
+      error(userError);
     }
 
     // 组合封面和用户信息
@@ -127,7 +128,7 @@ export async function findCoverById(id: number): Promise<Cover | undefined> {
     try {
       cover.llm_params = JSON.parse(cover.llm_params);
     } catch (e) {
-      console.log("parse cover llm_params failed: ", e);
+      log("parse cover llm_params failed: "+ e);
     }
 
     return cover;
@@ -157,7 +158,7 @@ export async function findCoverByUuid(
     .single();
 
   if (coverError || !coverData) {
-    console.error(coverError);
+    error(coverError);
     return undefined;
   }
 
@@ -169,7 +170,7 @@ export async function findCoverByUuid(
     .single();
 
   if (userError) {
-    console.error(userError);
+    error(userError);
     // 如果没有找到用户信息，仍然返回封面信息但不包含用户信息
   }
   
@@ -188,7 +189,7 @@ export async function findCoverByUuid(
   try {
     cover.llm_params = JSON.parse(cover.llm_params);
   } catch (e) {
-    console.log("parse cover llm_params failed: ", e);
+    log("parse cover llm_params failed: "+ e);
   }
 
   return cover;
@@ -233,11 +234,12 @@ export async function getCovers(page: number, limit: number): Promise<Cover[]> {
     .range(offset, offset + limit - 1);
 
   if (error || !data) {
-    console.error('Error fetching covers:', error);
+    // error('Error fetching covers:'+ error);
+    console.error('Error fetching covers:'+ error);
     return [];
   }
-  console.warn("getCovers-data:")
-  console.warn(data)
+  warn("getCovers-data:")
+  warn(data)
   const covers = data.map(d => formatCover(d));
   return covers;
 }
@@ -312,7 +314,7 @@ export function formatCover(data: any): Cover {
 //   try {
 //     cover.llm_params = JSON.parse(JSON.stringify(cover.llm_params));
 //   } catch (e) {
-//     console.log("parse cover llm_params failed: ", e);
+//     log("parse cover llm_params failed: " e);
 //   }
 
 //   return cover;

@@ -4,23 +4,24 @@ import { Order } from "@/types/order";
 import Stripe from "stripe";
 import { UserCredits } from "@/types/user";
 import { getUserCoversCount } from "@/models/cover";
+import { log, warn, error } from '@/lib/log';
 
 export async function handleOrderSession(session_id: string) {
   const stripe = new Stripe(process.env.STRIPE_PRIVATE_KEY || "");
   try {
     const session = await stripe.checkout.sessions.retrieve(session_id);
-    console.log("order session: ", session);
+    log("order session: "+ session);
     if (!session || !session.metadata || !session.metadata.order_no) {
-      console.log("invalid session", session_id);
+      log("invalid session"+ session_id);
       throw new Error("invalid session");
     }
 
     const order_no = session.metadata.order_no;
     const paied_at = new Date().toISOString();
     updateOrderStatus(order_no, 2, paied_at);
-    console.log("update success order status: ", order_no, paied_at);
+    log("update success order status: "+ order_no+ paied_at);
   } catch (e) {
-    console.log("handle order session failed: ", e);
+    log("handle order session failed: "+ e);
     throw e;
   }
 }
@@ -57,7 +58,7 @@ export async function getUserCredits(user_email: string): Promise<UserCredits> {
 
     return user_credits;
   } catch (e) {
-    console.log("get user credits failed: ", e);
+    log("get user credits failed: "+ e);
     return user_credits;
   }
 }

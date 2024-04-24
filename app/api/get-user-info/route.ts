@@ -6,6 +6,8 @@ import { currentUser } from "@clerk/nextjs";
 import { genUuid } from "@/lib";
 import { getUserCredits } from "@/services/order";
 
+import { log, warn, error } from '@/lib/log';
+
 export async function POST(req: Request) {
   const user = await currentUser();
   if (!user || !user.emailAddresses || user.emailAddresses.length === 0) {
@@ -16,8 +18,8 @@ export async function POST(req: Request) {
     const email = user.emailAddresses[0].emailAddress;
     const nickname = user.firstName;
     const avatarUrl = user.imageUrl;
-    console.warn("user:")
-    console.warn(user)
+    warn("user:")
+    warn(user)
     let userInfo: User = {
       email: email,
       nickname: nickname || "",
@@ -25,7 +27,7 @@ export async function POST(req: Request) {
       uuid: genUuid(),
     };
     const existUser = await findUserByEmail(email);
-    console.warn("existUser:"+existUser)
+    warn("existUser:"+existUser)
     if (existUser) {
       userInfo.uuid = existUser.uuid;
     } else {
@@ -33,14 +35,14 @@ export async function POST(req: Request) {
     }
 
     const user_credits = await getUserCredits(email);
-    console.warn('user_credits:')
-    console.warn(user_credits)
+    warn('user_credits:')
+    warn(user_credits)
     userInfo.credits = user_credits;
 
     return respData(userInfo);
   } catch (e) {
-    console.log("get user info failed:");
-    console.log(e);
+    log("get user info failed:");
+    log(e);
     return respErr("get user info failed");
   }
 }

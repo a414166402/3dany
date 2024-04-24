@@ -4,6 +4,7 @@ import { createContext, useEffect, useState } from "react";
 import { Cover } from "@/types/cover";
 import { User } from "@/types/user";
 import { toast } from "sonner";
+import { log, warn, error } from '@/lib/log';
 
 export const AppContext = createContext({} as ContextProviderValue);
 
@@ -32,7 +33,7 @@ export const AppContextProvider = ({ children }: ContextProviderProps) => {
     } catch (e) {
       setUser(null);
 
-      console.log("[get user info failed: ", e);
+      log("[get user info failed: "+ e);
       toast.error("get user info failed]"+e);
     }
   };

@@ -1,6 +1,7 @@
 import { findUserByEmail, insertUser } from "@/models/user";
 
 import { User } from "@/types/user";
+import { log, warn, error } from '@/lib/log';
 
 export async function saveUser(user: User) {
   try {
@@ -9,6 +10,6 @@ export async function saveUser(user: User) {
       await insertUser(user);
     }
   } catch (e) {
-    console.log("save user failed: ", e);
+    log("save user failed: "+ e);
   }
 }

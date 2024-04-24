@@ -5,6 +5,7 @@ import { Order } from "@/types/order";
 import Stripe from "stripe";
 import { currentUser } from "@clerk/nextjs";
 import { genOrderNo } from "@/lib/order";
+import { log, warn, error } from '@/lib/log';
 
 // export const maxDuration = 120;
 
@@ -14,7 +15,7 @@ export async function POST(req: Request) {
     return respErr("not login");
   }
   const user_email = user.emailAddresses[0].emailAddress;
-  console.log("user email: ", user_email);
+  log("user email: "+ user_email);
 
   try {
     const { credits, currency, amount, plan } = await req.json();
@@ -47,7 +48,7 @@ export async function POST(req: Request) {
       currency: currency,
     };
     insertOrder(order);
-    console.log("create new order: ", order);
+    log("create new order: "+ order);
 
     const stripe = new Stripe(process.env.STRIPE_PRIVATE_KEY || "");
 
@@ -98,7 +99,7 @@ export async function POST(req: Request) {
 
     const stripe_session_id = session.id;
     updateOrderSession(order_no, stripe_session_id);
-    console.log("update order session: ", order_no, stripe_session_id);
+    log("update order session: "+ order_no+ stripe_session_id);
 
     return respData({
       public_key: process.env.STRIPE_PUBLIC_KEY,
@@ -106,7 +107,7 @@ export async function POST(req: Request) {
       session_id: stripe_session_id,
     });
   } catch (e) {
-    console.log("checkout failed: ", e);
+    log("checkout failed: "+ e);
     return respErr("checkout failed");
   }
 }

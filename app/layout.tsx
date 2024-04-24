@@ -22,6 +22,7 @@ export default function RootLayout({
   return (
     <ClerkProvider>
       <html lang="en">
+        <Script defer src="https://us.umami.is/script.js" data-website-id={process.env.NEXT_PUBLIC_UMAMI_KEY}></Script>
         <body className={inter.className}>
           <Script
             src="/enable-threads.js"

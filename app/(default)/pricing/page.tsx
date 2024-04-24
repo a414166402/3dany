@@ -6,6 +6,7 @@ import { loadStripe } from "@stripe/stripe-js";
 import { toast } from "sonner";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import { log, warn, error } from '@/lib/log';
 
 const tiers = [
   {
@@ -109,7 +110,7 @@ export default function () {
       const result = await stripe.redirectToCheckout({
         sessionId: session_id,
       });
-      console.log("result", result);
+      log("result"+ result);
 
       if (result.error) {
         setLoading(false);
@@ -120,7 +121,7 @@ export default function () {
     } catch (e) {
       setLoading(false);
 
-      console.log("checkout failed: ", e);
+      log("checkout failed: "+ e);
 
       toast.error("checkout failed");
     }

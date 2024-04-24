@@ -38,18 +38,18 @@ export default function ({ user }: Props) {
         <DropdownMenuSeparator />
 
         <DropdownMenuCheckboxItem className="md:hidden text-center">
-          额度: {user.credits?.left_credits}
+          Credits: {user.credits?.left_credits}
         </DropdownMenuCheckboxItem>
         <DropdownMenuSeparator className="md:hidden" />
 
         <DropdownMenuCheckboxItem className="md:hidden">
-          <a href="/pricing">价格</a>
+          <a href="/pricing">Price</a>
         </DropdownMenuCheckboxItem>
         <DropdownMenuSeparator className="md:hidden" />
 
         <DropdownMenuCheckboxItem>
           <SignOutButton signOutCallback={() => location.reload()}>
-            退出登录
+            Sign out
           </SignOutButton>
         </DropdownMenuCheckboxItem>
       </DropdownMenuContent>

@@ -1,5 +1,6 @@
 import { User } from "@/types/user";
 import { getDb } from "@/models/db";
+import { log, warn, error } from '@/lib/log';
 
 export async function insertUser(user: User) {
   const createdAt: string = new Date().toISOString();
@@ -24,8 +25,8 @@ export async function insertUser(user: User) {
   if (error) {
     throw error;
   }
-  console.warn("insertUserSussucess!!!")
-  console.warn(data)
+  warn("insertUserSussucess!!!")
+  warn(data)
   return data;
 }
 
@@ -49,13 +50,13 @@ export async function findUserByEmail(
     // 检查是否是因为没有找到匹配的行而报错
     if (error.code === 'PGRST116' && error.details.includes('0 rows')) {
       // 如果是因为没有找到用户，返回undefined
-      console.warn('No user found for email:', email);
+      warn('No user found for email:'+ email);
       return undefined;
     }
     // 如果是其他类型的错误，则抛出异常
     throw error;
   }
-  console.warn('findUserByEmail:'+data);
+  warn('findUserByEmail:'+data);
   // const { rows } = res;
   // const row = rows[0];
   const user: User = {
@@ -83,7 +84,7 @@ export async function findUserByUuid(uuid: string): Promise<User | undefined> {
   .eq('uuid', uuid)
   .single();
 
-  console.warn('findUserByUuid:'+data);
+  warn('findUserByUuid:'+data);
   // const { rows } = res;
   // const row = rows[0];
   const user: User = {

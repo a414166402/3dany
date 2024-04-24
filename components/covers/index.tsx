@@ -5,6 +5,7 @@ import { useContext, useEffect, useState } from "react";
 import { AppContext } from "@/contexts/AppContext";
 import { Cover } from "@/types/cover";
 import Image from "next/image";
+import { log, warn, error } from '@/lib/log';
 
 export default function () {
   const { covers, setCovers } = useContext(AppContext);
@@ -33,7 +34,7 @@ export default function () {
         setCovers(data);
       }
     } catch (e) {
-      console.log("fetch covers failed", e);
+      log("fetch covers failed"+ e);
     }
   };
 

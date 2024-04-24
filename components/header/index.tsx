@@ -74,7 +74,7 @@ export default function () {
                     </>
                   ) : (
                     <a className="cursor-pointer" href="/sign-in">
-                      <Button>登录</Button>
+                      <Button>Login</Button>
                     </a>
                   )}
                 </>

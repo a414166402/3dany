@@ -2,6 +2,7 @@ import AWS from "aws-sdk";
 import { Readable } from "stream";
 import axios from "axios";
 import fs from "fs";
+import { log, warn, error } from '@/lib/log';
 
 AWS.config.update({
   accessKeyId: process.env.AWS_AK,
@@ -30,7 +31,7 @@ export async function downloadAndUploadImage(
 
     return s3.upload(uploadParams).promise();
   } catch (e) {
-    console.log("upload failed:", e);
+    log("upload failed:"+ e);
     throw e;
   }
 }
@@ -61,7 +62,7 @@ export async function downloadImage(imageUrl: string, outputPath: string) {
       });
     });
   } catch (e) {
-    console.log("upload failed:", e);
+    log("upload failed:"+ e);
     throw e;
   }
 }
