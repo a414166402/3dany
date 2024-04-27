@@ -1,6 +1,6 @@
 import React, { useRef, useEffect, useState } from 'react';
 
-import { setGUI, playDepthImg, pauseDepthImg, resetDepthImg, setTreeSceneNode, setSetDisplacementScale, getDefaultScale, setRelightMode, getDefaultPointLightDepth, getDefaultPointLightPower, getDefaultPointLightRange, getDefaultPointLightColor, setPointLightDepth, setPointLightPower, setPointLightRange, setPointLightColor, resetCameraPos, setCameraControlEnable , saveImage, saveVideo, setLightBallVisible, setOrthographicMode, setImmersionMode} from "@/services/core"
+import { setGUI, setLoopVideo, setStartSeconds, setTotalSeconds, setFPS, playDepthImg, pauseDepthImg, resetDepthImg, setTreeSceneNode, setSetDisplacementScale, getDefaultScale, setRelightMode, getDefaultStartSeconds, getDefaultVideoTotalSeconds, getDefaultFPS, getDefaultPointLightDepth, getDefaultPointLightPower, getDefaultPointLightRange, getDefaultPointLightColor, setPointLightDepth, setPointLightPower, setPointLightRange, setPointLightColor, resetCameraPos, setCameraControlEnable , saveImage, saveVideo, setLightBallVisible, setOrthographicMode, setImmersionMode} from "@/services/core"
 import { GUI } from 'three/examples/jsm/libs/lil-gui.module.min.js';
 import { log, warn, error } from '@/lib/log';
 
@@ -17,8 +17,15 @@ const initWeb = (containerRef: React.RefObject<HTMLDivElement>) => {
   let defaultPointLightPower: number = getDefaultPointLightPower();
   let defaultPointLightRange: number = getDefaultPointLightRange();
   let defaultPointLightColor: string = getDefaultPointLightColor();
+  let defaultStartSeconds: number = getDefaultStartSeconds();
+  let defaultTotalSeconds: number = getDefaultVideoTotalSeconds();
+  let defaultFPS: number = getDefaultFPS();
   const params = {
     threeDScale: defaultScale,
+    isLoopVideo: false,
+    startSeconds: defaultStartSeconds,
+    totalSeconds: defaultTotalSeconds,
+    FPS: defaultFPS,
     playVideo: playDepthImg,
     pauseVideo: pauseDepthImg,
     resetVideo: resetDepthImg,
@@ -57,17 +64,27 @@ const initWeb = (containerRef: React.RefObject<HTMLDivElement>) => {
   const cameraFolder = gui.addFolder('Camera');
   cameraFolder.close();
 
-  gui.add(params, 'threeDScale', 0.0, 2, 0.01).name('3D Scale').onChange(function (scale) {
+  gui.add(params, 'threeDScale', 0, 2, 0.01).name('3D Scale').onChange(function (scale) {
     setSetDisplacementScale(scale);
   });
   // 添加保存图片的点击按钮
   imageFolder.add(params, 'saveImage').name('Save Image');
-  // // 视频是否循环播放 默认False
-  // videoFolder.add(params, 'isLoopVideo').name('Is Loop Video');  
-  // // 视频总秒数 1-5秒 默认5秒
-  // videoFolder.add(params, '').name('');  
-  // // 视频每秒帧数 1-12 默认12
-  // videoFolder.add(params, 'FPS').name('FPS');
+  // 视频是否循环播放 默认False
+  videoFolder.add(params, 'isLoopVideo').name('Is Loop Video').onChange(function (bol) {
+    setLoopVideo(bol);
+  }); 
+  // 从第几秒开始播放视频 不限制 默认0秒
+  videoFolder.add(params, 'startSeconds', 0, 10000, 1).name('Start Seconds').onChange(function (num) {
+    setStartSeconds(num);
+  }); 
+  // 视频总秒数 1-5秒 默认5秒
+  videoFolder.add(params, 'totalSeconds', 1, 5, 1).name('Video Total Seconds').onChange(function (num) {
+    setTotalSeconds(num);
+  }); 
+  // 视频每秒帧数 1-12 默认12
+  videoFolder.add(params, 'FPS', 1, 12, 1).name('FPS').onChange(function (num) {
+    setFPS(num);
+  }); 
   // 添加播放视频帧的点击按钮
   videoFolder.add(params, 'playVideo').name('Play Video');
   // 添加暂停视频帧的点击按钮

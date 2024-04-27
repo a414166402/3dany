@@ -55,12 +55,13 @@ let DEFAULT_POINTLIGHT_POWER: number;
 let DEFAULT_POINTLIGHT_RANGE: number;
 let DEFAULT_POINTLIGHT_COLOR: string;
 let IS_DEV_MODE: number;
+let FIX_FPS = 30;//假设输入的视频固定帧数为30帧
 let OUT_FPS: number;//输出视频的每秒帧数
 let OUT_TOTAL_FRAME: number;//输出视频的总帧数
 let OUT_TOTAL_SECONDS: number;//输出视频的总秒数
 let OUT_START_SECONDS: number;//从第几秒开始截取视频
 let OUT_START_FRAME: number;//从第几帧数开始截取视频
-let VIDEO_TOTAL_SECONDS: number = 0;//视频的总秒数
+let VIDEO_TOTAL_SECONDS: number = 0;//获取到的视频的总秒数
 let MAX_DIMENSION: number;//400;//锁定传入视频的最大宽高最大值
 let targetWidth = 0;
 let targetHeight = 0;
@@ -128,6 +129,15 @@ export function getDefaultPointLightRange(): number {
 export function getDefaultPointLightColor(): string {
     return DEFAULT_POINTLIGHT_COLOR;
 }
+export function getDefaultStartSeconds(): number{
+    return OUT_START_SECONDS;
+}
+export function getDefaultVideoTotalSeconds(): number{
+    return OUT_TOTAL_SECONDS;
+}
+export function getDefaultFPS(): number{
+    return OUT_FPS;
+}
 export function getIsDevMode(): boolean {
     return IS_DEV_MODE == 1 ? true : false;
 }
@@ -139,12 +149,13 @@ export function setSetDisplacementMap(map: any) {
     setDisplacementMap(map);
 }
 let setDisplacementScale: any;//动态设置图片材质缩放大小的方法
+let FIX_CYLINDER_SCALE: number = 1.5;//一个系数来动态调节图片的高度
 export function setSetDisplacementScale(scale: any) {
     setDisplacementScale(scale);
-    //在沉浸式环绕模式中，scale值越大，高度不变但图片的相对弧长会边长，所以需要添加一个系数来动态弥补图片的高度
+    //在沉浸式环绕模式中，scale值越大，高度不变但图片的相对弧长会边长，所以需要添加一个系数来动态调节图片的高度
     if(isImmersionMode){
         // 动态设置圆柱体在y方向上的缩放值
-        cylinder.scale.y = 1+scale;
+        cylinder.scale.y = 1+scale*FIX_CYLINDER_SCALE;
     }
 }
 
@@ -381,8 +392,8 @@ export function setImmersionMode(bol: boolean){
         resetCameraPos();
         depthPlane.visible = false;
         // 定义圆柱体的参数
-        const thetaStart = -Math.PI*0.5; // 起始角度为0度
-        thetaLength = Math.PI; // 结束角度为180度，即半圆
+        const thetaStart = -Math.PI*0.75; // 起始角度为0度
+        thetaLength = Math.PI*1.5; // 结束角度为180度，即半圆
         const cylinderHeight = 1;//thetaLength*radius;
         const cylinderWidth = targetWidth/targetHeight*cylinderHeight;
         const radius = cylinderWidth/thetaLength;//0.5;
@@ -399,7 +410,7 @@ export function setImmersionMode(bol: boolean){
         // 设置内部贴图的UV映射坐标
         cylinder.geometry.scale(1, 1, -1); // 反转UV映射以在内部显示贴图
         //在沉浸式环绕模式中，scale值越大，高度不变但图片的相对弧长会边长，所以需要添加一个系数来动态弥补图片的高度
-        cylinder.scale.y = 1+DEFAULT_SCALE;
+        cylinder.scale.y = 1+DEFAULT_SCALE*FIX_CYLINDER_SCALE;
 
         scene.add(cylinder);
 
@@ -433,7 +444,7 @@ let depth_estimator: DepthEstimationPipeline | null = null;
 //获取depth_estimator单例
 export async function getDepthEstimator() {
     if (!depth_estimator) {
-        depth_estimator = await pipeline('depth-estimation', 'Xenova/depth-anything-small-hf', {
+        depth_estimator = await pipeline('depth-estimation', 'Xenova/depth-anything-base-hf', {
             quantized: QUANTIZED,
             session_options: {
                 executionProviders: [executionProvidersStr]
@@ -568,6 +579,26 @@ async function depthRawImg(rawImgArr: any[]) {
         return []; // 返回一个空数组表示失败
     }
 }
+let isLoopVideo: boolean = false;
+export function setLoopVideo(bol: boolean){
+    isLoopVideo = bol;
+}
+export function setStartSeconds(num: number){
+    if(typeof num === "number" && num>=1){
+        OUT_START_SECONDS = Math.round(num);
+    }
+}
+export function setTotalSeconds(num: number){
+    if(typeof num === "number" && num>=1){
+        OUT_TOTAL_SECONDS = Math.round(num);
+        OUT_TOTAL_FRAME = OUT_TOTAL_SECONDS * OUT_FPS;
+    }
+}
+export function setFPS(num: number){
+    if(typeof num === "number" && num>=1){
+        OUT_FPS = Math.round(num);
+    }
+}
 let isPlaying: boolean = false;
 let currentFrame: number = 1;
 export function playDepthImg() {
@@ -576,10 +607,14 @@ export function playDepthImg() {
     //把tempObj应用到场景里 写一个计时器来跑逻辑 要对应上帧数
     let timer = setInterval(() => {
         if (currentFrame >= OUT_TOTAL_FRAME) {
-            clearInterval(timer);
-            isPlaying = false;
-            currentFrame = 1;
-            return;
+            if(isLoopVideo){
+                currentFrame = 1;
+            }else{
+                clearInterval(timer);
+                isPlaying = false;
+                currentFrame = 1;
+                return;
+            }
         }
         if(!isPlaying){
             clearInterval(timer);
@@ -937,13 +972,13 @@ export async function dealVideo(file: any) {
         video.addEventListener('seeked', async () => {
             // 获取视频总帧数和帧率
             VIDEO_TOTAL_SECONDS = video.duration;
-            const fps = 30; // 因为获取不到视频帧数 按通用帧数来 一般是24-30之间 这里按30帧算
+            const fps = FIX_FPS; // 因为获取不到视频帧数 按通用帧数来 一般是24-30之间 这里按30帧算
             const realTotalFrames = VIDEO_TOTAL_SECONDS * fps
             if (realTotalFrames < OUT_TOTAL_FRAME) {
                 OUT_TOTAL_FRAME = realTotalFrames;
                 OUT_TOTAL_SECONDS = OUT_TOTAL_FRAME / OUT_FPS;
             }
-            if (OUT_START_SECONDS > VIDEO_TOTAL_SECONDS - OUT_TOTAL_FRAME) {
+            if (OUT_START_SECONDS > VIDEO_TOTAL_SECONDS - OUT_TOTAL_SECONDS) {
                 //如果设置的初始时间有问题将会被重置为0
                 OUT_START_SECONDS = 0;
                 OUT_START_FRAME = 0;
