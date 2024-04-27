@@ -110,7 +110,7 @@ OUT_TOTAL_SECONDS = OUT_TOTAL_FRAME / OUT_FPS;
 OUT_START_SECONDS = Number(process.env.NEXT_PUBLIC_OUT_START_SECONDS);
 OUT_START_FRAME = OUT_START_SECONDS * OUT_FPS;
 MAX_DIMENSION = Number(process.env.NEXT_PUBLIC_MAX_DIMENSION);
-
+//当前PointLight的z坐标
 let currentPLDepth: number = DEFAULT_POINTLIGHT_DEPTH;
 
 export function getDefaultScale(): number {
@@ -141,6 +141,11 @@ export function setSetDisplacementMap(map: any) {
 let setDisplacementScale: any;//动态设置图片材质缩放大小的方法
 export function setSetDisplacementScale(scale: any) {
     setDisplacementScale(scale);
+    //在沉浸式环绕模式中，scale值越大，高度不变但图片的相对弧长会边长，所以需要添加一个系数来动态弥补图片的高度
+    if(isImmersionMode){
+        // 动态设置圆柱体在y方向上的缩放值
+        cylinder.scale.y = 1+scale;
+    }
 }
 
 export function setPointLightDepth(depth: number) {
@@ -158,7 +163,7 @@ export function setRelightMode(bol: boolean) {
     if (bol) {
         // 创建一个点光源
         pointLight = new THREE.PointLight(DEFAULT_POINTLIGHT_COLOR, DEFAULT_POINTLIGHT_POWER, DEFAULT_POINTLIGHT_RANGE);
-        pointLight.castShadow = true;
+        // pointLight.castShadow = true;
         // // 创建SpotLight
         // const color = DEFAULT_POINTLIGHT_COLOR; // 光源颜色
         // const intensity = DEFAULT_POINTLIGHT_POWER; // 光源强度
@@ -364,6 +369,47 @@ function downloadImage(dataUrl: any, filename: string) {
 export function saveVideo() {
 
 }
+let depthPlane: THREE.Mesh;
+let cylinder: any;
+let thetaLength: number;//圆柱弧度
+let depthMaterial: THREE.MeshStandardMaterial;
+//是否沉浸式摄像头模式
+let isImmersionMode = false;
+export function setImmersionMode(bol: boolean){
+    isImmersionMode = bol;
+    if(bol){
+        resetCameraPos();
+        depthPlane.visible = false;
+        // 定义圆柱体的参数
+        const thetaStart = -Math.PI*0.5; // 起始角度为0度
+        thetaLength = Math.PI; // 结束角度为180度，即半圆
+        const cylinderHeight = 1;//thetaLength*radius;
+        const cylinderWidth = targetWidth/targetHeight*cylinderHeight;
+        const radius = cylinderWidth/thetaLength;//0.5;
+        const radialSegments = 312;
+        const heightSegments = 312;
+    
+        const openEnded = true; // 设置为true表示没有顶部和底部
+    
+        // 创建没有顶部和底部的圆柱体几何体
+        const cylinderGeometry2 = new THREE.CylinderGeometry(radius, radius, cylinderHeight, radialSegments, heightSegments, openEnded,thetaStart,thetaLength);
+        // 创建圆柱体网格对象
+        cylinder = new THREE.Mesh(cylinderGeometry2, depthMaterial);
+        cylinder.position.set(0, 0, -0.5);
+        // 设置内部贴图的UV映射坐标
+        cylinder.geometry.scale(1, 1, -1); // 反转UV映射以在内部显示贴图
+        //在沉浸式环绕模式中，scale值越大，高度不变但图片的相对弧长会边长，所以需要添加一个系数来动态弥补图片的高度
+        cylinder.scale.y = 1+DEFAULT_SCALE;
+
+        scene.add(cylinder);
+
+        resetDepthImg();
+    }
+    else{
+        depthPlane.visible = true;
+        depthMaterial.visible = false;
+    }
+}
 
 let video: HTMLVideoElement;
 let offscreenCanvas: any;
@@ -559,9 +605,33 @@ export function resetDepthImg(){
         refreshImg(texture, depth);
     }
 }
+let hasInvertedDepth = false;
+function invertDepthData(){
+    // 反转数据的所有值
+    for (const key in tempObj) {
+        // 检查是否是对象自有的属性
+        if (tempObj.hasOwnProperty(key)) {
+            // 获取对应的值
+            if(tempObj[key] && tempObj[key].length>0){
+                for (let i = 0; i < tempObj[key][1].data.length; i++) {
+                    tempObj[key][1].data[i] = 255 - tempObj[key][1].data[i]; // 假设数据是0-255范围内的值，这里做了简单的反转处理
+                }
+            }
+        }
+    }
+}
 function refreshImg(texture: any, depth: any) {
     try {
         setImageMap(texture)
+        if(isImmersionMode && !hasInvertedDepth){
+            warn("---------------------invertDepthData-------------------------------")
+            hasInvertedDepth = true;
+            invertDepthData();
+        }else if(!isImmersionMode && hasInvertedDepth){
+            warn("---------------------invertDepthData2-------------------------------")
+            hasInvertedDepth = false;
+            invertDepthData();
+        }
         setDisplacementMap(depth.toCanvas());
     } catch (e) {
         error("【refreshImg】:" + e);
@@ -581,7 +651,7 @@ function setCamera(isOrthographicMode: boolean,cameraType: string) {
     const bottom = -scale;
 
     const near = 0.01; // 与透视相机的near相同
-    const far = 10; // 与透视相机的far相同
+    const far = 30; // 与透视相机的far相同
     let curCamera;
     if(cameraType=="main"){
         curCamera = camera;
@@ -644,13 +714,13 @@ function setupScene(canvasHeight: number, canvasWeight: number) {
     const light = new THREE.AmbientLight(0xffffff, 2);
     scene.add(light);
 
-    const material = new THREE.MeshStandardMaterial({
+    depthMaterial = new THREE.MeshStandardMaterial({
         // map: texture,
         side: THREE.DoubleSide,
         // transparent: true
     });
 
-    material.displacementScale = getDefaultScale();
+    depthMaterial.displacementScale = getDefaultScale();
 
     //裁切几何体指定点
     // material.needsUpdate = true;
@@ -668,30 +738,41 @@ function setupScene(canvasHeight: number, canvasWeight: number) {
 
     //动态设置纹理
     setImageMap = (tex: any) => {
-        material.map = tex;
-        material.needsUpdate = true;
+        depthMaterial.map = tex;
+        depthMaterial.needsUpdate = true;
     }
     //动态设置材质高度
     setDisplacementMap = (canvas: any) => {
-        material.displacementMap = new THREE.CanvasTexture(canvas);
-        material.needsUpdate = true;
+        depthMaterial.displacementMap = new THREE.CanvasTexture(canvas);
+        if(isImmersionMode){
+            // 调整UV映射以适应圆柱体几何形状
+            const size = new THREE.Vector3();
+            cylinder.geometry.computeBoundingBox();
+            cylinder.geometry.boundingBox.getSize(size);
+            // depthMaterial.displacementMap.repeat.set(size.x/2*thetaLength, size.y);
+            depthMaterial.displacementMap.wrapS = THREE.ClampToEdgeWrapping;//THREE.RepeatWrapping;
+            depthMaterial.displacementMap.wrapT = THREE.ClampToEdgeWrapping;//THREE.RepeatWrapping;
+            depthMaterial.displacementMap.repeat.set(1, 1);
+        }
+        depthMaterial.needsUpdate = true;
     }
     //动态设置材质比例
     setDisplacementScale = (scale: any) => {
-        material.displacementScale = scale;
-        material.needsUpdate = true;
+        depthMaterial.displacementScale = scale;
+        depthMaterial.needsUpdate = true;
     }
 
     //自适配图片面板大小 并添加到场景中 Create plane and rescale it so that max(w, h) = 1
     const [pw, ph] = targetWidth > targetHeight ? [1, targetHeight / targetWidth] : [targetWidth / targetHeight, 1];
     const geometry: THREE.PlaneGeometry = new THREE.PlaneGeometry(pw, ph, targetWidth, targetHeight);
 
-    const plane = new THREE.Mesh(geometry, material);
-    plane.castShadow = true;
+    depthPlane = new THREE.Mesh(geometry, depthMaterial);
+    // plane.castShadow = true;
 
     // 设置平面的位置
-    plane.position.set(0, 0, -1);
-    scene.add(plane);
+    depthPlane.position.set(0, 0, -1);
+    scene.add(depthPlane);
+
 
     //添加水印
     addWaterMark();

@@ -1,6 +1,6 @@
 import React, { useRef, useEffect, useState } from 'react';
 
-import { setGUI, playDepthImg, pauseDepthImg, resetDepthImg, setTreeSceneNode, setSetDisplacementScale, getDefaultScale, setRelightMode, getDefaultPointLightDepth, getDefaultPointLightPower, getDefaultPointLightRange, getDefaultPointLightColor, setPointLightDepth, setPointLightPower, setPointLightRange, setPointLightColor, resetCameraPos, setCameraControlEnable , saveImage, saveVideo, setLightBallVisible, setOrthographicMode} from "@/services/core"
+import { setGUI, playDepthImg, pauseDepthImg, resetDepthImg, setTreeSceneNode, setSetDisplacementScale, getDefaultScale, setRelightMode, getDefaultPointLightDepth, getDefaultPointLightPower, getDefaultPointLightRange, getDefaultPointLightColor, setPointLightDepth, setPointLightPower, setPointLightRange, setPointLightColor, resetCameraPos, setCameraControlEnable , saveImage, saveVideo, setLightBallVisible, setOrthographicMode, setImmersionMode} from "@/services/core"
 import { GUI } from 'three/examples/jsm/libs/lil-gui.module.min.js';
 import { log, warn, error } from '@/lib/log';
 
@@ -32,9 +32,18 @@ const initWeb = (containerRef: React.RefObject<HTMLDivElement>) => {
     pointLightColor: defaultPointLightColor,
     resetCameraPos: resetCameraPos,
     lockCamera: false,
-    orthographicMode:false 
+    orthographicMode: false,
+    setImmersionMode: false
   };
   const gui = new GUI();
+  // 获取GUI的DOM元素
+  const guiDom = gui.domElement;
+  // 添加GUI的样式
+  guiDom.style.position = 'absolute';
+  guiDom.style.top = '50%';
+  guiDom.style.right = '0';
+  guiDom.style.transform = 'translate(0, -50%)';
+
   // 创建图片子菜单
   const imageFolder = gui.addFolder('Image');
   imageFolder.close();
@@ -48,11 +57,17 @@ const initWeb = (containerRef: React.RefObject<HTMLDivElement>) => {
   const cameraFolder = gui.addFolder('Camera');
   cameraFolder.close();
 
-  gui.add(params, 'threeDScale', 0.0, 1.0, 0.01).name('3D Scale').onChange(function (scale) {
+  gui.add(params, 'threeDScale', 0.0, 2, 0.01).name('3D Scale').onChange(function (scale) {
     setSetDisplacementScale(scale);
   });
   // 添加保存图片的点击按钮
   imageFolder.add(params, 'saveImage').name('Save Image');
+  // // 视频是否循环播放 默认False
+  // videoFolder.add(params, 'isLoopVideo').name('Is Loop Video');  
+  // // 视频总秒数 1-5秒 默认5秒
+  // videoFolder.add(params, '').name('');  
+  // // 视频每秒帧数 1-12 默认12
+  // videoFolder.add(params, 'FPS').name('FPS');
   // 添加播放视频帧的点击按钮
   videoFolder.add(params, 'playVideo').name('Play Video');
   // 添加暂停视频帧的点击按钮
@@ -129,6 +144,12 @@ const initWeb = (containerRef: React.RefObject<HTMLDivElement>) => {
   cameraFolder.add(params, 'orthographicMode').name('2D Mode').onChange(function (bol) {
     setOrthographicMode(bol);
   });
+
+  cameraFolder.add(params,'setImmersionMode').name('Immersion Mode').onChange(function (bol) {
+    setImmersionMode(bol);
+  });
+
+
   setGUI(gui,params,relightMode);
   gui.open(); // Open the GUI
   return () => {
