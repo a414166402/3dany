@@ -47,7 +47,7 @@ const initWeb = (containerRef: React.RefObject<HTMLDivElement>) => {
   const guiDom = gui.domElement;
   // 添加GUI的样式
   guiDom.style.position = 'absolute';
-  guiDom.style.top = '50%';
+  guiDom.style.top = '70%';
   guiDom.style.right = '0';
   guiDom.style.transform = 'translate(0, -50%)';
 
@@ -67,6 +67,11 @@ const initWeb = (containerRef: React.RefObject<HTMLDivElement>) => {
   gui.add(params, 'threeDScale', 0, 2, 0.01).name('3D Scale').onChange(function (scale) {
     setSetDisplacementScale(scale);
   });
+  // 添加沉浸式模式的勾选按钮
+  gui.add(params,'setImmersionMode').name('Immersion Mode').onChange(function (bol) {
+    setImmersionMode(bol);
+  });
+
   // 添加保存图片的点击按钮
   imageFolder.add(params, 'saveImage').name('Save Image');
   // 视频是否循环播放 默认False
@@ -160,10 +165,6 @@ const initWeb = (containerRef: React.RefObject<HTMLDivElement>) => {
   // 添加showLightBall的布尔值
   cameraFolder.add(params, 'orthographicMode').name('2D Mode').onChange(function (bol) {
     setOrthographicMode(bol);
-  });
-
-  cameraFolder.add(params,'setImmersionMode').name('Immersion Mode').onChange(function (bol) {
-    setImmersionMode(bol);
   });
 
 

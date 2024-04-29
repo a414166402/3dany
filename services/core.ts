@@ -1,3 +1,5 @@
+'use client'
+
 import { pipeline, env, DepthEstimationPipeline, RawImage } from "@a414166402/3dany";
 // log("e-------------nv.backends.onnx-=--------");
 // log(env);
@@ -13,6 +15,32 @@ import { BooleanController, GUI } from 'three/examples/jsm/libs/lil-gui.module.m
 
 // 导入DragControls插件
 import { DragControls } from 'three/examples/jsm/controls/DragControls.js';
+
+interface NavigatorWithGPU extends Navigator {
+    gpu?: any;
+}
+let USE_WEBGPU = false;
+if(typeof navigator !== 'undefined'){
+    const navigatorWithGPU = navigator as NavigatorWithGPU;
+    if ('gpu' in navigatorWithGPU) {
+        navigatorWithGPU.gpu.requestAdapter()
+            .then(() => {
+                // WebGPU is supported, you can proceed with using it
+                log('WebGPU is supported');
+                USE_WEBGPU = true;
+            })
+            .catch(() => {
+                // WebGPU is not supported
+                toast.error('WebGPU is not supported');
+            });
+    } else {
+        // WebGPU is not supported
+        toast.error('WebGPU is not supported');
+    }
+}else{
+    toast.error('navigator is undefined');
+}
+
 
 //修复ONNX核心 强制使用web环境
 let ONNX;
@@ -35,10 +63,16 @@ if (ONNX?.env?.wasm) {
 }
 // ONNX.env.wasm = { proxy: true };
 // ONNX.env.wasmPaths = ['https://cdn.jsdelivr.net/npm/onnxruntime-web@1.17.1/dist/'];
-ONNX.env.numThreads = 1;
-env.backends.onnx = ONNX.env;
-env.allowLocalModels = false;
-env.experimental.useWebGPU = true;
+USE_WEBGPU = false;
+if(USE_WEBGPU){
+    ONNX.env.numThreads = 1;
+    env.backends.onnx = ONNX.env;
+    env.allowLocalModels = false;
+    env.experimental.useWebGPU = true;
+}
+
+
+
 let setStatus: any;
 export function setInputSetStatus(fun: any) {
     setStatus = fun;
@@ -48,7 +82,6 @@ const MAX_DEPTH_IMG_BATCH_SIZE = 1;//处理一次深度图的最大打包数量
 // const EXAMPLE_URL = 'https://video.twimg.com/ext_tw_video/1751214622923976704/pu/vid/avc1/720x1280/pXx4rkujEbWicsv6.mp4?tag=12';
 const EXAMPLE_URL = 'https://huggingface.co/datasets/Xenova/transformers.js-docs/resolve/main/bread_small.png';
 
-let USE_WEBGPU = true;
 let DEFAULT_SCALE: number;
 let DEFAULT_POINTLIGHT_DEPTH: number;
 let DEFAULT_POINTLIGHT_POWER: number;
@@ -105,12 +138,12 @@ DEFAULT_POINTLIGHT_DEPTH = Number(process.env.NEXT_PUBLIC_DEFAULT_POINTLIGHT_DEP
 DEFAULT_POINTLIGHT_POWER = Number(process.env.NEXT_PUBLIC_DEFAULT_POINTLIGHT_POWER);
 DEFAULT_POINTLIGHT_RANGE = Number(process.env.NEXT_PUBLIC_DEFAULT_POINTLIGHT_RANGE);
 DEFAULT_POINTLIGHT_COLOR = process.env.NEXT_PUBLIC_DEFAULT_POINTLIGHT_COLOR ?? "";
-OUT_FPS = Number(process.env.NEXT_PUBLIC_OUT_FPS);
-OUT_TOTAL_FRAME = Number(process.env.NEXT_PUBLIC_OUT_TOTAL_FRAME);
+OUT_FPS = USE_WEBGPU ? Number(process.env.NEXT_PUBLIC_OUT_FPS) : 6;
+OUT_TOTAL_FRAME = USE_WEBGPU ? Number(process.env.NEXT_PUBLIC_OUT_TOTAL_FRAME) : 18;
 OUT_TOTAL_SECONDS = OUT_TOTAL_FRAME / OUT_FPS;
 OUT_START_SECONDS = Number(process.env.NEXT_PUBLIC_OUT_START_SECONDS);
 OUT_START_FRAME = OUT_START_SECONDS * OUT_FPS;
-MAX_DIMENSION = Number(process.env.NEXT_PUBLIC_MAX_DIMENSION);
+MAX_DIMENSION = USE_WEBGPU ? Number(process.env.NEXT_PUBLIC_MAX_DIMENSION) : 400;
 //当前PointLight的z坐标
 let currentPLDepth: number = DEFAULT_POINTLIGHT_DEPTH;
 
@@ -390,35 +423,41 @@ export function setImmersionMode(bol: boolean){
     isImmersionMode = bol;
     if(bol){
         resetCameraPos();
-        depthPlane.visible = false;
-        // 定义圆柱体的参数
-        const thetaStart = -Math.PI*0.75; // 起始角度为0度
-        thetaLength = Math.PI*1.5; // 结束角度为180度，即半圆
-        const cylinderHeight = 1;//thetaLength*radius;
-        const cylinderWidth = targetWidth/targetHeight*cylinderHeight;
-        const radius = cylinderWidth/thetaLength;//0.5;
-        const radialSegments = 312;
-        const heightSegments = 312;
+        if(cylinder){
+            depthPlane.visible = false;
+            cylinder.visible = true;
+        }else{
+            depthPlane.visible = false;
+            // 定义圆柱体的参数
+            const thetaStart = -Math.PI*0.75; // 起始角度为0度
+            thetaLength = Math.PI*1.5; // 结束角度为180度，即半圆
+            const cylinderHeight = 1;//thetaLength*radius;
+            const cylinderWidth = targetWidth/targetHeight*cylinderHeight;
+            const radius = cylinderWidth/thetaLength;//0.5;
+            const radialSegments = 312;
+            const heightSegments = 312;
+        
+            const openEnded = true; // 设置为true表示没有顶部和底部
+        
+            // 创建没有顶部和底部的圆柱体几何体
+            const cylinderGeometry2 = new THREE.CylinderGeometry(radius, radius, cylinderHeight, radialSegments, heightSegments, openEnded,thetaStart,thetaLength);
+            // 创建圆柱体网格对象
+            cylinder = new THREE.Mesh(cylinderGeometry2, depthMaterial);
+            cylinder.position.set(0, 0, 1);
+            // 设置内部贴图的UV映射坐标
+            cylinder.geometry.scale(1, 1, -1); // 反转UV映射以在内部显示贴图
+            //在沉浸式环绕模式中，scale值越大，高度不变但图片的相对弧长会边长，所以需要添加一个系数来动态弥补图片的高度
+            cylinder.scale.y = 1+DEFAULT_SCALE*FIX_CYLINDER_SCALE;
     
-        const openEnded = true; // 设置为true表示没有顶部和底部
-    
-        // 创建没有顶部和底部的圆柱体几何体
-        const cylinderGeometry2 = new THREE.CylinderGeometry(radius, radius, cylinderHeight, radialSegments, heightSegments, openEnded,thetaStart,thetaLength);
-        // 创建圆柱体网格对象
-        cylinder = new THREE.Mesh(cylinderGeometry2, depthMaterial);
-        cylinder.position.set(0, 0, -0.5);
-        // 设置内部贴图的UV映射坐标
-        cylinder.geometry.scale(1, 1, -1); // 反转UV映射以在内部显示贴图
-        //在沉浸式环绕模式中，scale值越大，高度不变但图片的相对弧长会边长，所以需要添加一个系数来动态弥补图片的高度
-        cylinder.scale.y = 1+DEFAULT_SCALE*FIX_CYLINDER_SCALE;
-
-        scene.add(cylinder);
+            scene.add(cylinder);
+        }
 
         resetDepthImg();
     }
     else{
+        resetCameraPos();
         depthPlane.visible = true;
-        depthMaterial.visible = false;
+        cylinder.visible = false;
     }
 }
 
