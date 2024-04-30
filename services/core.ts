@@ -23,21 +23,15 @@ let USE_WEBGPU = false;
 if(typeof navigator !== 'undefined'){
     const navigatorWithGPU = navigator as NavigatorWithGPU;
     if ('gpu' in navigatorWithGPU) {
-        navigatorWithGPU.gpu.requestAdapter()
-            .then(() => {
-                // WebGPU is supported, you can proceed with using it
-                log('WebGPU is supported');
-                USE_WEBGPU = true;
-            })
-            .catch(() => {
-                // WebGPU is not supported
-                toast.error('WebGPU is not supported');
-            });
+        console.log('WebGPU is supported');
+        USE_WEBGPU = true;
     } else {
         // WebGPU is not supported
+        console.error('WebGPU is not supported');
         toast.error('WebGPU is not supported');
     }
 }else{
+    console.error('navigator is undefined');
     toast.error('navigator is undefined');
 }
 
@@ -48,7 +42,6 @@ const ONNX_MODULES = new Map();
 // @ts-ignore
 ONNX = ONNX_WEB.default ?? ONNX_WEB;
 ONNX_MODULES.set('web', ONNX);
-
 // Running in a browser-environment
 const isIOS = typeof navigator !== 'undefined' && /iP(hone|od|ad).+16_4.+AppleWebKit/.test(navigator.userAgent);
 if (isIOS) {
@@ -63,12 +56,13 @@ if (ONNX?.env?.wasm) {
 }
 // ONNX.env.wasm = { proxy: true };
 // ONNX.env.wasmPaths = ['https://cdn.jsdelivr.net/npm/onnxruntime-web@1.17.1/dist/'];
-USE_WEBGPU = false;
 if(USE_WEBGPU){
     ONNX.env.numThreads = 1;
     env.backends.onnx = ONNX.env;
-    env.allowLocalModels = false;
     env.experimental.useWebGPU = true;
+}else{
+    env.allowLocalModels = false;
+    // env.backends.onnx.wasm.proxy = true;
 }
 
 
@@ -125,11 +119,6 @@ export function setGUI(temp_gui: GUI, params: any, relightMode: any) {
     guiParams = params;
     gui_relightMode = relightMode;
 }
-// // test code active gui
-// params.lockCamera = true;
-// // 手动更新GUI的显示
-// lockCamera.updateDisplay();
-// lockCamera._onChange(params.lockCamera);
 
 //读取.env.local数据初始化参数
 IS_DEV_MODE = Number(process.env.NEXT_PUBLIC_IS_DEV_MODE);
@@ -423,6 +412,7 @@ export function setImmersionMode(bol: boolean){
     isImmersionMode = bol;
     if(bol){
         resetCameraPos();
+        // camera.position.z = -0.25;
         if(cylinder){
             depthPlane.visible = false;
             cylinder.visible = true;
