@@ -96,8 +96,8 @@ export default function () {
   return (
     <div className="flex flex-col items-center justify-center h-full p-4">
       <Head>
-        <script src="https://cdn.jsdelivr.net/npm/ccapture.js/build/CCapture.all.min.js"></script>
-        <script src="./enable-threads.js"></script>
+        {/* <script src="https://cdn.jsdelivr.net/npm/ccapture.js/build/CCapture.all.min.js"></script> */}
+        {/* <script src="./enable-threads.js"></script> */}
       </Head>
       <div id="container" className="relative flex flex-col items-center justify-center w-full sm:w-[50vw] md:w-[75vw] lg:max-w-[1080px] h-[calc(100vw*2/3)] sm:h-[calc(50vw*2/3)] md:h-[calc(75vw*2/3)] lg:max-h-[720px] border-2 border-dashed border-gray-300 rounded-lg overflow-hidden mt-4 bg-cover bg-center bg-no-repeat">
         <label htmlFor="upload" className="flex flex-col items-center justify-center gap-1 cursor-pointer text-lg">

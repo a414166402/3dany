@@ -1,6 +1,6 @@
 import React, { useRef, useEffect, useState } from 'react';
 
-import { setGUI, setLoopVideo, setStartSeconds, setTotalSeconds, setFPS, playDepthImg, pauseDepthImg, resetDepthImg, setTreeSceneNode, setSetDisplacementScale, getDefaultScale, setRelightMode, getDefaultStartSeconds, getDefaultVideoTotalSeconds, getDefaultFPS, getDefaultPointLightDepth, getDefaultPointLightPower, getDefaultPointLightRange, getDefaultPointLightColor, setPointLightDepth, setPointLightPower, setPointLightRange, setPointLightColor, resetCameraPos, setCameraControlEnable , saveImage, saveVideo, setLightBallVisible, setOrthographicMode, setImmersionMode} from "@/services/core"
+import { setGUI, setLoopVideo, setStartSeconds, setTotalSeconds, setFPS, playDepthImg, pauseDepthImg, resetDepthImg, setTreeSceneNode, setSetDisplacementScale, getDefaultScale, setRelightMode, getDefaultStartSeconds, getDefaultVideoTotalSeconds, getDefaultFPS, getDefaultPointLightDepth, getDefaultPointLightPower, getDefaultPointLightRange, getDefaultPointLightColor, setPointLightDepth, setPointLightPower, setPointLightRange, setPointLightColor, resetCameraPos, setCameraControlEnable , saveImage, saveVideo, startRecording, stopRecording, setLightBallVisible, setOrthographicMode, setImmersionMode} from "@/services/core"
 import { GUI } from 'three/examples/jsm/libs/lil-gui.module.min.js';
 import { log, warn, error } from '@/lib/log';
 
@@ -31,6 +31,8 @@ const initWeb = (containerRef: React.RefObject<HTMLDivElement>) => {
     resetVideo: resetDepthImg,
     saveImage: saveImage,
     saveVideo: saveVideo,
+    startRecording: startRecording, 
+    stopRecording: stopRecording, 
     relightMode: false,
     showLightBall: true,
     pointLightDepth: defaultPointLightDepth,
@@ -85,11 +87,11 @@ const initWeb = (containerRef: React.RefObject<HTMLDivElement>) => {
   // 视频总秒数 1-5秒 默认5秒
   videoFolder.add(params, 'totalSeconds', 1, 5, 1).name('Video Total Seconds').onChange(function (num) {
     setTotalSeconds(num);
-  }); 
+  });
   // 视频每秒帧数 1-12 默认12
   videoFolder.add(params, 'FPS', 1, 12, 1).name('FPS').onChange(function (num) {
     setFPS(num);
-  }); 
+  });
   // 添加播放视频帧的点击按钮
   videoFolder.add(params, 'playVideo').name('Play Video');
   // 添加暂停视频帧的点击按钮
@@ -98,6 +100,10 @@ const initWeb = (containerRef: React.RefObject<HTMLDivElement>) => {
   videoFolder.add(params, 'resetVideo').name('Reset Video');
   // 添加保存视频的点击按钮
   videoFolder.add(params, 'saveVideo').name('Save Video');
+  // 添加开始录制视频的点击按钮
+  videoFolder.add(params, 'startRecording').name('Start Recording');
+  // 添加停止录制视频的点击按钮
+  videoFolder.add(params, 'stopRecording').name('Stop Recording');
   // 添加relightMode的勾选按钮
   let relightMode =  lightFolder.add(params, 'relightMode').name('Relight Mode').onChange(function (bol) {
     // 根据用户选择更新relightMode的值

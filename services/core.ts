@@ -378,7 +378,6 @@ function setWaterMarkPos() {
     }
     renderer.render(uiScene, uiCamera);
 }
-
 export function saveImage() {
     // this.renderer.domElement.width;
     // this.renderer.domElement.height;
@@ -399,9 +398,89 @@ function downloadImage(dataUrl: any, filename: string) {
     a.click(); // 然后模拟点击
     document.body.removeChild(a); // 最后移除这个元素
 }
-export function saveVideo() {
-
+// 创建一个变量来存储录制状态
+let isRecording = false;
+let isSaveVideoRecording = false;
+let mediaRecorder: MediaRecorder;
+export async function saveVideo() {
+    if(isRecording){
+        toast("Recording...Please try click 'Stop Recording'");
+        return;
+    }
+    if(isSaveVideoRecording){
+        toast("Save Video Recording...Please try click 'Stop Recording'");
+        return;
+    }
+    isSaveVideoRecording = true;
+    resetDepthImg();
+    startRecord();
+    playDepthImg();
 }
+export function startRecording(){
+    if(isSaveVideoRecording){
+        toast("Save Video Recording...Please try click 'Stop Recording'");
+        return;
+    }
+    startRecord();
+}
+export function stopRecording(){
+    stopRecord();
+}
+function startRecord(){
+    if (!isRecording) {
+        isRecording = true;
+        // 获取<canvas>元素的视频流
+        const stream = canvas.captureStream(OUT_FPS); 
+        // 创建MediaRecorder对象，指定视频流和选项
+        mediaRecorder = new MediaRecorder(stream);
+        // 定义存储录制数据的数组
+        let chunks: Blob[] = [];
+        // 监听数据可用事件，将数据存储到数组中
+        mediaRecorder.ondataavailable = (e) => {
+            if (e.data.size > 0) {
+                chunks.push(e.data);
+            }
+        };
+        // 监听录制停止事件，保存录制的媒体内容到文件
+        mediaRecorder.onstop = () => {
+            const blob = new Blob(chunks, { type: 'video/webm' });
+            const url = URL.createObjectURL(blob);
+        
+            // 创建一个链接并下载录制的视频
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'recorded-video.webm';
+            document.body.appendChild(a);
+            a.click();
+        
+            // 释放资源
+            URL.revokeObjectURL(url);
+        };
+
+        // 开始录制前的准备工作
+        mediaRecorder.start();
+        setStatus("Recording......");
+        log("开始录制");
+    } else {
+        toast("Recording...Please try click 'Stop Recording'");
+        log("已经在录制中");
+    }
+}
+function stopRecord(){
+    if (isRecording) {
+        if(isSaveVideoRecording) isSaveVideoRecording = false;
+        // 设置录制状态为false
+        isRecording = false;
+        // 停止录制
+        mediaRecorder.stop();
+        setStatus("End Recording");
+        log("结束录制");
+    } else {
+        toast("Not Start Recording...Please try click 'Start Recording'");
+        log("未开始录制");
+    }
+}
+
 let depthPlane: THREE.Mesh;
 let cylinder: any;
 let thetaLength: number;//圆柱弧度
@@ -631,24 +710,33 @@ export function setFPS(num: number){
 let isPlaying: boolean = false;
 let currentFrame: number = 1;
 export function playDepthImg() {
-    if (isPlaying) return;
+    if(isPlaying) return;
     isPlaying = true;
     //把tempObj应用到场景里 写一个计时器来跑逻辑 要对应上帧数
     let timer = setInterval(() => {
-        if (currentFrame >= OUT_TOTAL_FRAME) {
-            if(isLoopVideo){
-                currentFrame = 1;
-            }else{
-                clearInterval(timer);
-                isPlaying = false;
-                currentFrame = 1;
-                return;
-            }
-        }
         if(!isPlaying){
             clearInterval(timer);
             return;
         } 
+        if (currentFrame >= OUT_TOTAL_FRAME) {
+            if(isSaveVideoRecording){
+                clearInterval(timer);
+                isPlaying = false;
+                currentFrame = 1;
+                stopRecord();
+                isSaveVideoRecording = false;
+                return;
+            }else{
+                if(isLoopVideo){
+                    currentFrame = 1;
+                }else{
+                    clearInterval(timer);
+                    isPlaying = false;
+                    currentFrame = 1;
+                    return;
+                }
+            }
+        }
         let depth = tempObj[currentFrame][1];
         let texture = tempObj[currentFrame][2];
         if (depth && texture) {
