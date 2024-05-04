@@ -1,9 +1,9 @@
 import React, { useRef, useEffect, useState } from 'react';
 
-import { setGUI, setLoopVideo, setStartSeconds, setTotalSeconds, setFPS, playDepthImg, pauseDepthImg, resetDepthImg, setTreeSceneNode, setSetDisplacementScale, getDefaultScale, setRelightMode, getDefaultStartSeconds, getDefaultVideoTotalSeconds, getDefaultFPS, getDefaultPointLightDepth, getDefaultPointLightPower, getDefaultPointLightRange, getDefaultPointLightColor, setPointLightDepth, setPointLightPower, setPointLightRange, setPointLightColor, resetCameraPos, setCameraControlEnable , saveImage, saveVideo, startRecording, stopRecording, setLightBallVisible, setOrthographicMode, setImmersionMode} from "@/services/core"
+import { setGUI, setLoopVideo, setStartSeconds, setTotalSeconds, setFPS, playDepthImg, pauseDepthImg, resetDepthImg, setTreeSceneNode, setSetDisplacementScale, getDefaultScale, setRelightMode, getDefaultStartSeconds, getDefaultVideoTotalSeconds, getDefaultFPS, getDefaultPointLightDepth, getDefaultPointLightPower, getDefaultPointLightRange, getDefaultPointLightColor, setPointLightDepth, setPointLightPower, setPointLightRange, setPointLightColor, resetCameraPos, setCameraControlEnable, saveImage, saveVideo, startRecording, stopRecording, setLightBallVisible, setOrthographicMode, setImmersionMode, setSkyBox, setSetSkyboxDisplacementScale } from "@/services/core"
 import { GUI } from 'three/examples/jsm/libs/lil-gui.module.min.js';
 import { log, warn, error } from '@/lib/log';
-
+import {SkyBoxName} from '@/services/GlobalEnum'
 //初始化页面
 const initWeb = (containerRef: React.RefObject<HTMLDivElement>) => {
   if (!containerRef || !containerRef.current) {
@@ -31,8 +31,8 @@ const initWeb = (containerRef: React.RefObject<HTMLDivElement>) => {
     resetVideo: resetDepthImg,
     saveImage: saveImage,
     saveVideo: saveVideo,
-    startRecording: startRecording, 
-    stopRecording: stopRecording, 
+    startRecording: startRecording,
+    stopRecording: stopRecording,
     relightMode: false,
     showLightBall: true,
     pointLightDepth: defaultPointLightDepth,
@@ -42,7 +42,10 @@ const initWeb = (containerRef: React.RefObject<HTMLDivElement>) => {
     resetCameraPos: resetCameraPos,
     lockCamera: false,
     orthographicMode: false,
-    setImmersionMode: false
+    setImmersionMode: false,
+    isAddSkyBox: false,
+    selectSkyBox: SkyBoxName.SUNNY_SKY,
+    skyboxTreeDScale: defaultScale
   };
   const gui = new GUI();
   // 获取GUI的DOM元素
@@ -65,12 +68,16 @@ const initWeb = (containerRef: React.RefObject<HTMLDivElement>) => {
   // 创建相机子菜单
   const cameraFolder = gui.addFolder('Camera');
   cameraFolder.close();
+  // 创建相机子菜单
+  const skyboxFolder = gui.addFolder('Skybox');
+  skyboxFolder.close();
 
   gui.add(params, 'threeDScale', 0, 2, 0.01).name('3D Scale').onChange(function (scale) {
     setSetDisplacementScale(scale);
   });
+
   // 添加沉浸式模式的勾选按钮
-  gui.add(params,'setImmersionMode').name('Immersion Mode').onChange(function (bol) {
+  gui.add(params, 'setImmersionMode').name('Immersion Mode').onChange(function (bol) {
     setImmersionMode(bol);
   });
 
@@ -79,11 +86,11 @@ const initWeb = (containerRef: React.RefObject<HTMLDivElement>) => {
   // 视频是否循环播放 默认False
   videoFolder.add(params, 'isLoopVideo').name('Is Loop Video').onChange(function (bol) {
     setLoopVideo(bol);
-  }); 
+  });
   // 从第几秒开始播放视频 不限制 默认0秒
   videoFolder.add(params, 'startSeconds', 0, 10000, 1).name('Start Seconds').onChange(function (num) {
     setStartSeconds(num);
-  }); 
+  });
   // 视频总秒数 1-5秒 默认5秒
   videoFolder.add(params, 'totalSeconds', 1, 5, 1).name('Video Total Seconds').onChange(function (num) {
     setTotalSeconds(num);
@@ -105,7 +112,7 @@ const initWeb = (containerRef: React.RefObject<HTMLDivElement>) => {
   // 添加停止录制视频的点击按钮
   videoFolder.add(params, 'stopRecording').name('Stop Recording');
   // 添加relightMode的勾选按钮
-  let relightMode =  lightFolder.add(params, 'relightMode').name('Relight Mode').onChange(function (bol) {
+  let relightMode = lightFolder.add(params, 'relightMode').name('Relight Mode').onChange(function (bol) {
     // 根据用户选择更新relightMode的值
     // bol为true时，表示选中；bol为false时，表示未选中
     setRelightMode(bol);
@@ -163,9 +170,9 @@ const initWeb = (containerRef: React.RefObject<HTMLDivElement>) => {
     setPointLightColor(color);
   });
   pointLightColor.domElement.style.display = 'none';  // 初始隐藏pointLightColor
-  
-  cameraFolder.add(params,'resetCameraPos').name('Reset Camera');
-  cameraFolder.add(params,'lockCamera').name('Lock Camera').onChange(function (bol){
+
+  cameraFolder.add(params, 'resetCameraPos').name('Reset Camera');
+  cameraFolder.add(params, 'lockCamera').name('Lock Camera').onChange(function (bol) {
     setCameraControlEnable(bol);
   });
   // 添加showLightBall的布尔值
@@ -173,8 +180,24 @@ const initWeb = (containerRef: React.RefObject<HTMLDivElement>) => {
     setOrthographicMode(bol);
   });
 
+  skyboxFolder.add(params, 'isAddSkyBox').name('Is Add Skybox').onChange(function (bol) {
+    if(bol){
+      let selectedName = params.selectSkyBox;
+      setSkyBox(selectedName);
+    }else{
+      setSkyBox(SkyBoxName.NONE);
+    }
+  });
 
-  setGUI(gui,params,relightMode);
+  skyboxFolder.add(params, 'selectSkyBox',[SkyBoxName.SUNNY_SKY,SkyBoxName.BIG_ROOM,SkyBoxName.BANGKOK,SkyBoxName.ANIME_CIVILLIZATION,SkyBoxName.WET_COBBLESTONE,SkyBoxName.BROKEN_CITY,SkyBoxName.WARM_HOME,SkyBoxName.LINE_ROOM,SkyBoxName.CAVERN_CONCEPT,SkyBoxName.ICELAND_LANDSCAPE]).name('Select Skybox').onChange(function () {
+    let selectedName = params.selectSkyBox;
+    setSkyBox(selectedName);
+  });
+  skyboxFolder.add(params, 'skyboxTreeDScale', 0, 100, 0.01).name('Skybox 3D Scale').onChange(function (scale) {
+    setSetSkyboxDisplacementScale(scale);
+  });
+
+  setGUI(gui, params, relightMode);
   gui.open(); // Open the GUI
   return () => {
     gui.destroy(); // 在组件卸载时销毁 GUI

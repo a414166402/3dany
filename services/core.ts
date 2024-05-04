@@ -12,15 +12,17 @@ import * as ONNX_WEB from 'onnxruntime-web';
 import { toast } from "sonner";
 import { log, warn, error } from '@/lib/log';
 import { BooleanController, GUI } from 'three/examples/jsm/libs/lil-gui.module.min.js';
+import { ImgObjectType, CameraUsage, CameraType, SkyBoxName } from './GlobalEnum';
 
 // 导入DragControls插件
 import { DragControls } from 'three/examples/jsm/controls/DragControls.js';
+
 
 interface NavigatorWithGPU extends Navigator {
     gpu?: any;
 }
 let USE_WEBGPU = false;
-if(typeof navigator !== 'undefined'){
+if (typeof navigator !== 'undefined') {
     const navigatorWithGPU = navigator as NavigatorWithGPU;
     if ('gpu' in navigatorWithGPU) {
         console.log('WebGPU is supported');
@@ -30,7 +32,7 @@ if(typeof navigator !== 'undefined'){
         console.error('WebGPU is not supported');
         toast.error('WebGPU is not supported');
     }
-}else{
+} else {
     console.error('navigator is undefined');
     toast.error('navigator is undefined');
 }
@@ -56,11 +58,11 @@ if (ONNX?.env?.wasm) {
 }
 // ONNX.env.wasm = { proxy: true };
 // ONNX.env.wasmPaths = ['https://cdn.jsdelivr.net/npm/onnxruntime-web@1.17.1/dist/'];
-if(USE_WEBGPU){
+if (USE_WEBGPU) {
     ONNX.env.numThreads = 1;
     env.backends.onnx = ONNX.env;
     env.experimental.useWebGPU = true;
-}else{
+} else {
     env.allowLocalModels = false;
     // env.backends.onnx.wasm.proxy = true;
 }
@@ -114,6 +116,29 @@ let curStatus: number;
 let firstCanvasWidth: number;
 let firstCanvasHeight: number;
 
+let video: HTMLVideoElement;
+let offscreenCanvas: any;
+let canvas: any;
+//{id:[img,depth,texture]}
+let tempObj: { [key: number]: any[] } = {}
+//{id:[img,depth,texture]}
+let skyBoxObj: { [key: number]: any[] } = {}
+let currentImgObjType: ImgObjectType;
+
+let isSaveDepth = false;//是否开启保存深度图模式
+let isLoadDepth = false;//是否开启读取本地深度图模式
+let isLoadRawImg = false;//是否开启读取本地RawImg格式的图片 影响深度图的获取
+let isLoadTexture = false;//是否开启读取本地图片Texture 影响图片的正确显示
+const QUANTIZED = false;
+let executionProvidersStr = USE_WEBGPU ? 'webgpu' : 'wasm';
+let depth_estimator: DepthEstimationPipeline | null = null;
+export function getCanvas(): any {
+    return canvas;
+}
+export function setCanvas(cv: any) {
+    canvas = cv;
+}
+
 export function setGUI(temp_gui: GUI, params: any, relightMode: any) {
     gui = temp_gui;
     guiParams = params;
@@ -151,13 +176,13 @@ export function getDefaultPointLightRange(): number {
 export function getDefaultPointLightColor(): string {
     return DEFAULT_POINTLIGHT_COLOR;
 }
-export function getDefaultStartSeconds(): number{
+export function getDefaultStartSeconds(): number {
     return OUT_START_SECONDS;
 }
-export function getDefaultVideoTotalSeconds(): number{
+export function getDefaultVideoTotalSeconds(): number {
     return OUT_TOTAL_SECONDS;
 }
-export function getDefaultFPS(): number{
+export function getDefaultFPS(): number {
     return OUT_FPS;
 }
 export function getIsDevMode(): boolean {
@@ -171,14 +196,18 @@ export function setSetDisplacementMap(map: any) {
     setDisplacementMap(map);
 }
 let setDisplacementScale: any;//动态设置图片材质缩放大小的方法
+let setSkyboxDisplacementScale: any;//动态设置天空盒图片材质缩放大小的方法
 let FIX_CYLINDER_SCALE: number = 1.5;//一个系数来动态调节图片的高度
 export function setSetDisplacementScale(scale: any) {
     setDisplacementScale(scale);
     //在沉浸式环绕模式中，scale值越大，高度不变但图片的相对弧长会边长，所以需要添加一个系数来动态调节图片的高度
-    if(isImmersionMode){
+    if (isImmersionMode) {
         // 动态设置圆柱体在y方向上的缩放值
-        cylinder.scale.y = 1+scale*FIX_CYLINDER_SCALE;
+        cylinder.scale.y = 1 + scale * FIX_CYLINDER_SCALE;
     }
+}
+export function setSetSkyboxDisplacementScale(scale: any){
+    setSkyboxDisplacementScale(scale);
 }
 
 export function setPointLightDepth(depth: number) {
@@ -305,7 +334,8 @@ export function setCameraControlEnable(bol: boolean) {
     controls.enabled = !bol;
 }
 export function setOrthographicMode(bol: boolean) {
-    setCamera(bol,"main");
+    let cameraType = bol ? CameraType.OrthographicCamera : CameraType.PerspectiveCamera;
+    setCamera(CameraUsage.MAIN, cameraType);
     //添加摄像头控制器 Add orbit controls
     setControl();
     //这里如果开启重置光照模式光照位置会出问题
@@ -331,7 +361,7 @@ export function addWaterMark() {
 
     // 创建一个新的摄像头
     uiScene = new THREE.Scene();
-    setCamera(true,"ui")
+    setCamera(CameraUsage.UI,CameraType.OrthographicCamera)
     uiCamera.position.set(0, 0, 0);
     // 将UI摄像头添加到uiScene中
     uiScene.add(uiCamera);
@@ -363,13 +393,13 @@ function setWaterMarkPos() {
     const spriteScale = 0.2; // 假设Sprite的缩放比例为0.2
     waterMarkSprite.scale.set(spriteScale, spriteScale, 0);
     if (canvas.width / canvas.height > 1) {
-        let tempx = canvas.width/firstCanvasWidth;
-        let tempy = canvas.height/firstCanvasHeight;
-        let fixX = (canvas.width/canvas.height)*tempx;
+        let tempx = canvas.width / firstCanvasWidth;
+        let tempy = canvas.height / firstCanvasHeight;
+        let fixX = (canvas.width / canvas.height) * tempx;
         let fixY = -tempy;
-        let spriteFixX = waterMarkSpriteWidth/canvas.width;
-        let spriteFixY = waterMarkSpriteHeight/canvas.height;
-        waterMarkSprite.position.set(fixX-0.2, fixY+0.2, -1); // 将图片设置在右下角
+        let spriteFixX = waterMarkSpriteWidth / canvas.width;
+        let spriteFixY = waterMarkSpriteHeight / canvas.height;
+        waterMarkSprite.position.set(fixX - 0.2, fixY + 0.2, -1); // 将图片设置在右下角
         // waterMarkSprite.position.set(canvas.width / canvas.height, -1, -1); // 将图片设置在右下角
     }
     else {
@@ -403,11 +433,11 @@ let isRecording = false;
 let isSaveVideoRecording = false;
 let mediaRecorder: MediaRecorder;
 export async function saveVideo() {
-    if(isRecording){
+    if (isRecording) {
         toast("Recording...Please try click 'Stop Recording'");
         return;
     }
-    if(isSaveVideoRecording){
+    if (isSaveVideoRecording) {
         toast("Save Video Recording...Please try click 'Stop Recording'");
         return;
     }
@@ -416,21 +446,21 @@ export async function saveVideo() {
     startRecord();
     playDepthImg();
 }
-export function startRecording(){
-    if(isSaveVideoRecording){
+export function startRecording() {
+    if (isSaveVideoRecording) {
         toast("Save Video Recording...Please try click 'Stop Recording'");
         return;
     }
     startRecord();
 }
-export function stopRecording(){
+export function stopRecording() {
     stopRecord();
 }
-function startRecord(){
+function startRecord() {
     if (!isRecording) {
         isRecording = true;
         // 获取<canvas>元素的视频流
-        const stream = canvas.captureStream(OUT_FPS); 
+        const stream = canvas.captureStream(OUT_FPS);
         // 创建MediaRecorder对象，指定视频流和选项
         mediaRecorder = new MediaRecorder(stream);
         // 定义存储录制数据的数组
@@ -445,14 +475,14 @@ function startRecord(){
         mediaRecorder.onstop = () => {
             const blob = new Blob(chunks, { type: 'video/webm' });
             const url = URL.createObjectURL(blob);
-        
+
             // 创建一个链接并下载录制的视频
             const a = document.createElement('a');
             a.href = url;
             a.download = 'recorded-video.webm';
             document.body.appendChild(a);
             a.click();
-        
+
             // 释放资源
             URL.revokeObjectURL(url);
         };
@@ -466,9 +496,9 @@ function startRecord(){
         log("已经在录制中");
     }
 }
-function stopRecord(){
+function stopRecord() {
     if (isRecording) {
-        if(isSaveVideoRecording) isSaveVideoRecording = false;
+        if (isSaveVideoRecording) isSaveVideoRecording = false;
         // 设置录制状态为false
         isRecording = false;
         // 停止录制
@@ -487,68 +517,114 @@ let thetaLength: number;//圆柱弧度
 let depthMaterial: THREE.MeshStandardMaterial;
 //是否沉浸式摄像头模式
 let isImmersionMode = false;
-export function setImmersionMode(bol: boolean){
+export function setImmersionMode(bol: boolean) {
     isImmersionMode = bol;
-    if(bol){
+    if (bol) {
         resetCameraPos();
         // camera.position.z = -0.25;
-        if(cylinder){
+        if (cylinder) {
             depthPlane.visible = false;
             cylinder.visible = true;
-        }else{
+        } else {
             depthPlane.visible = false;
             // 定义圆柱体的参数
-            const thetaStart = -Math.PI*0.75; // 起始角度为0度
-            thetaLength = Math.PI*1.5; // 结束角度为180度，即半圆
+            const thetaStart = -Math.PI*0.5;//-Math.PI//-Math.PI*0.75; // 起始角度为0度
+            thetaLength = Math.PI*1;//Math.PI * 2//Math.PI*1.5; // 结束角度为180度，即半圆
             const cylinderHeight = 1;//thetaLength*radius;
-            const cylinderWidth = targetWidth/targetHeight*cylinderHeight;
-            const radius = cylinderWidth/thetaLength;//0.5;
+            const cylinderWidth = targetWidth / targetHeight * cylinderHeight;
+            const radius = cylinderWidth / thetaLength;//0.5;
             const radialSegments = 312;
             const heightSegments = 312;
-        
+
             const openEnded = true; // 设置为true表示没有顶部和底部
-        
+
             // 创建没有顶部和底部的圆柱体几何体
-            const cylinderGeometry2 = new THREE.CylinderGeometry(radius, radius, cylinderHeight, radialSegments, heightSegments, openEnded,thetaStart,thetaLength);
+            const cylinderGeometry2 = new THREE.CylinderGeometry(radius, radius, cylinderHeight, radialSegments, heightSegments, openEnded, thetaStart, thetaLength);
             // 创建圆柱体网格对象
             cylinder = new THREE.Mesh(cylinderGeometry2, depthMaterial);
             cylinder.position.set(0, 0, 1);
             // 设置内部贴图的UV映射坐标
             cylinder.geometry.scale(1, 1, -1); // 反转UV映射以在内部显示贴图
             //在沉浸式环绕模式中，scale值越大，高度不变但图片的相对弧长会边长，所以需要添加一个系数来动态弥补图片的高度
-            cylinder.scale.y = 1+DEFAULT_SCALE*FIX_CYLINDER_SCALE;
-    
+            cylinder.scale.y = 1 + DEFAULT_SCALE * FIX_CYLINDER_SCALE;
+
             scene.add(cylinder);
         }
 
         resetDepthImg();
     }
-    else{
+    else {
         resetCameraPos();
         depthPlane.visible = true;
         cylinder.visible = false;
     }
 }
-
-let video: HTMLVideoElement;
-let offscreenCanvas: any;
-let canvas: any;
-export function getCanvas(): any {
-    return canvas;
+let isDepthSkybox = false;
+let skybox: THREE.Mesh;
+export async function setSkyBox(selectedName: SkyBoxName) {
+    if(selectedName == SkyBoxName.NONE){
+        //移除当前的天空盒
+        hasInvertedDepth = false;
+        isDepthSkybox = false;
+        currentImgObjType = ImgObjectType.DEPTH_PLANE;
+        if(skybox){
+            scene.remove(skybox);
+        }
+    }else{
+        if(skybox){
+            scene.remove(skybox);
+        }
+        isDepthSkybox = true;
+        currentImgObjType = ImgObjectType.SKY_BOX;
+        let imgPath = '/'+selectedName+'.jpg';
+        resetCameraPos();
+        initImgObj(ImgObjectType.SKY_BOX, 1);
+        // 创建一个天空盒材质
+        let skyTexture = new THREE.TextureLoader().load(imgPath);
+        const skyboxMaterial = new THREE.MeshStandardMaterial({
+            side: THREE.DoubleSide, // 设置材质为背面渲染
+            map: skyTexture // 加载天空盒贴图
+        });
+        // 创建一个天空盒几何体
+        // const skyboxGeometry = new THREE.BoxGeometry(10000, 10000, 10000); // 设置天空盒的尺寸
+        const skyboxGeometry = new THREE.SphereGeometry(10, 1000, 1000,-Math.PI/2,2*Math.PI,0,Math.PI);
+    
+        //动态设置材质比例
+        setSkyboxDisplacementScale = (scale: any) => {
+            skyboxMaterial.displacementScale = scale;
+            skyboxMaterial.needsUpdate = true;
+        }
+    
+        let rawImg = await RawImage.fromURL(imgPath);
+        let rawImgArr = [rawImg];
+        depthRawImg(rawImgArr).then(
+            () => {
+                if(isDepthSkybox){
+                    warn('done');
+                    let skyDepth = skyBoxObj[1][1];
+                    refreshImg(skyTexture,skyDepth);
+                    setStatus("Loading SkyBox......." + 100 + "%........")
+                    skyboxMaterial.displacementMap = new THREE.CanvasTexture(skyDepth.toCanvas());
+                    skyboxMaterial.displacementScale = 2;
+                    skyboxMaterial.needsUpdate = true;
+                    skyboxGeometry.scale(1, 1, -1); // 反转UV映射以在内部显示贴图
+                
+                    // 创建一个天空盒网格对象
+                    skybox = new THREE.Mesh(skyboxGeometry, skyboxMaterial);
+                
+                    // 将天空盒添加到场景中
+                    scene.add(skybox);
+        
+                    //执行完全部图片后再调用这个 清空状态
+                    hasInvertedDepth = false;
+                    isDepthSkybox = false;
+                    currentImgObjType = ImgObjectType.DEPTH_PLANE;
+                }
+            }
+        );
+    }
 }
-export function setCanvas(cv: any) {
-    canvas = cv;
-}
-//    {id:[img,depth,texture]}
-let tempObj: { [key: number]: any[] } = {}
-let isSaveDepth = false;//是否开启保存深度图模式
-let isLoadDepth = false;//是否开启读取本地深度图模式
-let isLoadRawImg = false;//是否开启读取本地RawImg格式的图片 影响深度图的获取
-let isLoadTexture = false;//是否开启读取本地图片Texture 影响图片的正确显示
 
-const QUANTIZED = false;
-let executionProvidersStr = USE_WEBGPU ? 'webgpu' : 'wasm';
-let depth_estimator: DepthEstimationPipeline | null = null;
 //获取depth_estimator单例
 export async function getDepthEstimator() {
     if (!depth_estimator) {
@@ -576,11 +652,7 @@ export async function prepareDepth() {
     await depth_estimator(new RawImage(arr, w, h, c));
     setStatus('Ready'); // 更新状态为Ready
 }
-function initTempObj(totalCount: number) {
-    for (let i = 1; i <= totalCount; i++) {
-        tempObj[i] = [];
-    }
-}
+
 function getOffCanvas() {
     // 创建离屏canvas
     const createCanvas = () => new OffscreenCanvas(targetWidth, targetHeight);
@@ -598,13 +670,13 @@ function getFrameAsRawImage(imageData: any) {
     return new RawImage(data, width, height, channels);
 }
 function videoDecodeFinish(rawImgArr: any[]) {
-    //先按原来的异步阻塞来实现获取深度图 并保存到tempObj里面 建议后面采用多线程或者队列来批量调用深度化图片接口
+    //先按原来的异步阻塞来实现获取深度图 并保存到getImgObj(currentImgObjType)里面 建议后面采用多线程或者队列来批量调用深度化图片接口
     // 主线程逻辑  
     depthRawImg(rawImgArr).then(
         () => {
             warn('done');
             // initWeb();
-            refreshImg(tempObj[1][2], tempObj[1][1])
+            refreshImg(getImgObj(currentImgObjType)[1][2], getImgObj(currentImgObjType)[1][1])
         }
     );
 }
@@ -638,8 +710,8 @@ async function processBatch(batch: any, batchOption: any) {
             }
             warn("获取深度图【" + batchOption.id + "】成功");
             warn(depth);
-            if (tempObj && tempObj[batchOption.id]) { // 确保tempObj存在并且有对应的id属性
-                tempObj[batchOption.id][1] = depth;
+            if (getImgObj(currentImgObjType) && getImgObj(currentImgObjType)[batchOption.id]) { // 确保getImgObj(currentImgObjType)存在并且有对应的id属性
+                getImgObj(currentImgObjType)[batchOption.id][1] = depth;
             }
             batchOption.id++;
             // return [id, depth];
@@ -656,8 +728,8 @@ async function processBatch(batch: any, batchOption: any) {
                 }
                 warn("获取深度图【" + batchOption.id + "】成功");
                 warn(depth);
-                if (tempObj && tempObj[batchOption.id]) { // 确保tempObj存在并且有对应的id属性
-                    tempObj[batchOption.id][1] = depth;
+                if (getImgObj(currentImgObjType) && getImgObj(currentImgObjType)[batchOption.id]) { // 确保getImgObj(currentImgObjType)存在并且有对应的id属性
+                    getImgObj(currentImgObjType)[batchOption.id][1] = depth;
                 }
                 batchOption.id++;
                 return [batchOption.id, depth];
@@ -688,48 +760,48 @@ async function depthRawImg(rawImgArr: any[]) {
     }
 }
 let isLoopVideo: boolean = false;
-export function setLoopVideo(bol: boolean){
+export function setLoopVideo(bol: boolean) {
     isLoopVideo = bol;
 }
-export function setStartSeconds(num: number){
-    if(typeof num === "number" && num>=1){
+export function setStartSeconds(num: number) {
+    if (typeof num === "number" && num >= 1) {
         OUT_START_SECONDS = Math.round(num);
     }
 }
-export function setTotalSeconds(num: number){
-    if(typeof num === "number" && num>=1){
+export function setTotalSeconds(num: number) {
+    if (typeof num === "number" && num >= 1) {
         OUT_TOTAL_SECONDS = Math.round(num);
         OUT_TOTAL_FRAME = OUT_TOTAL_SECONDS * OUT_FPS;
     }
 }
-export function setFPS(num: number){
-    if(typeof num === "number" && num>=1){
+export function setFPS(num: number) {
+    if (typeof num === "number" && num >= 1) {
         OUT_FPS = Math.round(num);
     }
 }
 let isPlaying: boolean = false;
 let currentFrame: number = 1;
 export function playDepthImg() {
-    if(isPlaying) return;
+    if (isPlaying) return;
     isPlaying = true;
-    //把tempObj应用到场景里 写一个计时器来跑逻辑 要对应上帧数
+    //把getImgObj(currentImgObjType)应用到场景里 写一个计时器来跑逻辑 要对应上帧数
     let timer = setInterval(() => {
-        if(!isPlaying){
+        if (!isPlaying) {
             clearInterval(timer);
             return;
-        } 
+        }
         if (currentFrame >= OUT_TOTAL_FRAME) {
-            if(isSaveVideoRecording){
+            if (isSaveVideoRecording) {
                 clearInterval(timer);
                 isPlaying = false;
                 currentFrame = 1;
                 stopRecord();
                 isSaveVideoRecording = false;
                 return;
-            }else{
-                if(isLoopVideo){
+            } else {
+                if (isLoopVideo) {
                     currentFrame = 1;
-                }else{
+                } else {
                     clearInterval(timer);
                     isPlaying = false;
                     currentFrame = 1;
@@ -737,36 +809,36 @@ export function playDepthImg() {
                 }
             }
         }
-        let depth = tempObj[currentFrame][1];
-        let texture = tempObj[currentFrame][2];
+        let depth = getImgObj(currentImgObjType)[currentFrame][1];
+        let texture = getImgObj(currentImgObjType)[currentFrame][2];
         if (depth && texture) {
             refreshImg(texture, depth);
         }
         currentFrame++;
     }, 1000 / OUT_FPS);
 }
-export function pauseDepthImg(){
+export function pauseDepthImg() {
     isPlaying = false;
 }
-export function resetDepthImg(){
+export function resetDepthImg() {
     isPlaying = false;
     currentFrame = 1;
-    let depth = tempObj[currentFrame][1];
-    let texture = tempObj[currentFrame][2];
+    let depth = getImgObj(currentImgObjType)[currentFrame][1];
+    let texture = getImgObj(currentImgObjType)[currentFrame][2];
     if (depth && texture) {
         refreshImg(texture, depth);
     }
 }
 let hasInvertedDepth = false;
-function invertDepthData(){
+function invertDepthData() {
     // 反转数据的所有值
-    for (const key in tempObj) {
+    for (const key in getImgObj(currentImgObjType)) {
         // 检查是否是对象自有的属性
-        if (tempObj.hasOwnProperty(key)) {
+        if (getImgObj(currentImgObjType).hasOwnProperty(key)) {
             // 获取对应的值
-            if(tempObj[key] && tempObj[key].length>0){
-                for (let i = 0; i < tempObj[key][1].data.length; i++) {
-                    tempObj[key][1].data[i] = 255 - tempObj[key][1].data[i]; // 假设数据是0-255范围内的值，这里做了简单的反转处理
+            if (getImgObj(currentImgObjType)[key] && getImgObj(currentImgObjType)[key].length > 0) {
+                for (let i = 0; i < getImgObj(currentImgObjType)[key][1].data.length; i++) {
+                    getImgObj(currentImgObjType)[key][1].data[i] = 255 - getImgObj(currentImgObjType)[key][1].data[i]; // 假设数据是0-255范围内的值，这里做了简单的反转处理
                 }
             }
         }
@@ -774,24 +846,26 @@ function invertDepthData(){
 }
 function refreshImg(texture: any, depth: any) {
     try {
-        setImageMap(texture)
-        if(isImmersionMode && !hasInvertedDepth){
+        if ((isImmersionMode || isDepthSkybox) && !hasInvertedDepth) {
             warn("---------------------invertDepthData-------------------------------")
             hasInvertedDepth = true;
             invertDepthData();
-        }else if(!isImmersionMode && hasInvertedDepth){
+        } else if (!isImmersionMode && !isDepthSkybox && hasInvertedDepth) {
             warn("---------------------invertDepthData2-------------------------------")
             hasInvertedDepth = false;
             invertDepthData();
         }
-        setDisplacementMap(depth.toCanvas());
+        if(!isDepthSkybox){
+            setImageMap(texture)
+            setDisplacementMap(depth.toCanvas());
+        }
     } catch (e) {
         error("【refreshImg】:" + e);
     }
 }
-function setCamera(isOrthographicMode: boolean,cameraType: string) {
+function setCamera(cameraUsage: CameraUsage, cameraType: CameraType) {
     // 设置井深
-    const fov = 30;
+    const fov = 60;
     // 假设 width 和 height 已经被定义，代表渲染区域的宽度和高度
     const aspect = canvas.width / canvas.height;
     // 选择一个合适的缩放系数，这个需要你根据实际情况调整
@@ -803,14 +877,14 @@ function setCamera(isOrthographicMode: boolean,cameraType: string) {
     const bottom = -scale;
 
     const near = 0.01; // 与透视相机的near相同
-    const far = 30; // 与透视相机的far相同
+    const far = 200//30; // 与透视相机的far相同
     let curCamera;
-    if(cameraType=="main"){
+    if (cameraUsage == CameraUsage.MAIN) {
         curCamera = camera;
-    }else{
+    } else {
         curCamera = uiCamera;
     }
-    if (isOrthographicMode) {
+    if (cameraType == CameraType.OrthographicCamera) {
         if (!curCamera || (curCamera && !(curCamera instanceof THREE.OrthographicCamera))) {
             // 创建正交相机
             curCamera = new THREE.OrthographicCamera(left, right, top, bottom, near, far);
@@ -821,7 +895,7 @@ function setCamera(isOrthographicMode: boolean,cameraType: string) {
             curCamera.bottom = bottom;
         }
     }
-    else {
+    else if (cameraType == CameraType.PerspectiveCamera) {
         if (!curCamera || (curCamera && !(curCamera instanceof THREE.PerspectiveCamera))) {
             //添加摄像头到场景 Create camera and add it to the scene
             curCamera = new THREE.PerspectiveCamera(fov, aspect, near, far);
@@ -833,9 +907,9 @@ function setCamera(isOrthographicMode: boolean,cameraType: string) {
         }
         curCamera.position.z = DEFAULT_CAMERA_Z;
     }
-    if(cameraType=="main"){
+    if (cameraUsage == CameraUsage.MAIN) {
         camera = curCamera;
-    }else{
+    } else if (cameraUsage == CameraUsage.UI) {
         uiCamera = curCamera as THREE.OrthographicCamera;
     }
 }
@@ -853,7 +927,7 @@ function setupScene(canvasHeight: number, canvasWeight: number) {
     const height = canvas.height = canvasHeight;
 
     scene = new THREE.Scene();
-    setCamera(false,"main");
+    setCamera(CameraUsage.MAIN, CameraType.PerspectiveCamera);
     scene.add(camera);
 
     renderer = new THREE.WebGLRenderer({ canvas: canvas, antialias: true, preserveDrawingBuffer: false });//,depthTexture: true,alpha: true
@@ -893,17 +967,13 @@ function setupScene(canvasHeight: number, canvasWeight: number) {
         depthMaterial.map = tex;
         depthMaterial.needsUpdate = true;
     }
-    //动态设置材质高度
+    //动态设置材质高度贴图
     setDisplacementMap = (canvas: any) => {
         depthMaterial.displacementMap = new THREE.CanvasTexture(canvas);
-        if(isImmersionMode){
+        if (isImmersionMode) {
             // 调整UV映射以适应圆柱体几何形状
-            const size = new THREE.Vector3();
-            cylinder.geometry.computeBoundingBox();
-            cylinder.geometry.boundingBox.getSize(size);
-            // depthMaterial.displacementMap.repeat.set(size.x/2*thetaLength, size.y);
-            depthMaterial.displacementMap.wrapS = THREE.ClampToEdgeWrapping;//THREE.RepeatWrapping;
-            depthMaterial.displacementMap.wrapT = THREE.ClampToEdgeWrapping;//THREE.RepeatWrapping;
+            depthMaterial.displacementMap.wrapS = THREE.ClampToEdgeWrapping;
+            depthMaterial.displacementMap.wrapT = THREE.ClampToEdgeWrapping;
             depthMaterial.displacementMap.repeat.set(1, 1);
         }
         depthMaterial.needsUpdate = true;
@@ -925,7 +995,6 @@ function setupScene(canvasHeight: number, canvasWeight: number) {
     depthPlane.position.set(0, 0, -1);
     scene.add(depthPlane);
 
-
     //添加水印
     addWaterMark();
 
@@ -940,18 +1009,18 @@ function setupScene(canvasHeight: number, canvasWeight: number) {
             if (controls)
                 controls.update();
 
-            if (uiScene && uiCamera) {
-                // 将HUD场景使用正交相机进行渲染
-                renderer.autoClear = false;
-                renderer.render(uiScene, uiCamera);
-            }
+            // if (uiScene && uiCamera) {
+            //     // 将HUD场景使用正交相机进行渲染
+            //     renderer.autoClear = false;
+            //     renderer.render(uiScene, uiCamera);
+            // }
         });
     }
     //添加摄像头刷新事件
     window.addEventListener('resize', onresize, false);
     // onresize();
 }
-function onresize(){
+function onresize() {
     const width = canvas.width = container2.clientWidth;
     const height = canvas.height = container2.clientHeight;
     // 假设 width 和 height 已经被定义，代表渲染区域的宽度和高度
@@ -963,6 +1032,7 @@ function onresize(){
     const right = scale * aspect;
     const top = scale;
     const bottom = -scale;
+    let mainCameraType = camera instanceof THREE.OrthographicCamera ? CameraType.OrthographicCamera : CameraType.PerspectiveCamera;
     if (camera instanceof THREE.OrthographicCamera) {
         camera.left = left;
         camera.right = right;
@@ -973,8 +1043,8 @@ function onresize(){
         camera.aspect = aspect;
         camera.updateProjectionMatrix();
     }
-    setCamera(camera instanceof THREE.OrthographicCamera,"main");
-    setCamera(true,"ui");
+    setCamera(CameraUsage.MAIN, mainCameraType);
+    setCamera(CameraUsage.UI, CameraType.OrthographicCamera);
     //适配水印位置
     setWaterMarkPos();
 
@@ -1031,8 +1101,8 @@ function getRawImg(frame: any, rawImgArr: any[]) {
     }
 }
 async function loadTexture(i: number) {
-    //init tempObj
-    tempObj[i + 1] = [];
+    //init getImgObj(currentImgObjType)
+    getImgObj(currentImgObjType)[i + 1] = [];
     // 从OffscreenCanvas创建ImageBitmap
     const imageBitmap = await createImageBitmap(offscreenCanvas);
     const texture = new THREE.Texture(imageBitmap);
@@ -1043,7 +1113,7 @@ async function loadTexture(i: number) {
     // warn("【" + (i + 1) + "】Texture本地加载成功")
     // warn(texture2)
     texture.colorSpace = THREE.SRGBColorSpace;
-    tempObj[i + 1][2] = texture;
+    getImgObj(currentImgObjType)[i + 1][2] = texture;
     warn("【" + (i + 1) + "】Texture获取成功")
     warn(texture)
 }
@@ -1051,8 +1121,9 @@ async function loadTexture(i: number) {
 //处理上传的视频文件
 export async function dealVideo(file: any) {
     let rawImgArr: any[] = [];
-    //init tempObj
-    initTempObj(OUT_TOTAL_FRAME)
+    //init getImgObj(currentImgObjType)
+    currentImgObjType = ImgObjectType.DEPTH_PLANE;
+    initImgObj(ImgObjectType.DEPTH_PLANE, OUT_TOTAL_FRAME)
 
     //从上传的视频截取5秒 每秒4帧 共20帧图片转成RawImage格式 从第OUT_START_SECONDS秒开始截取
     // 创建视频元素  
@@ -1082,7 +1153,7 @@ export async function dealVideo(file: any) {
             targetHeight -= targetHeight % 4;
         }
         // 设置视频当前播放位置为输出开始时间
-        
+
         // video.currentTime = OUT_START_SECONDS;
         video.currentTime = video.duration;
         // 当视频准备好播放指定时间帧时触发
@@ -1140,8 +1211,9 @@ export async function dealVideo(file: any) {
 export async function dealImg(img: any) {
     setStatus("Loading......." + 0 + "%........")
     let rawImgArr: any[] = [];
-    //init tempObj
-    initTempObj(OUT_TOTAL_FRAME);
+    //init getImgObj(currentImgObjType)
+    currentImgObjType = ImgObjectType.DEPTH_PLANE;
+    initImgObj(ImgObjectType.DEPTH_PLANE, OUT_TOTAL_FRAME);
     targetWidth = img.width;
     targetHeight = img.height;
     initCanvas();
@@ -1151,8 +1223,35 @@ export async function dealImg(img: any) {
         () => {
             warn('done');
             // initWeb();
-            refreshImg(tempObj[1][2], tempObj[1][1])
+            refreshImg(getImgObj(currentImgObjType)[1][2], getImgObj(currentImgObjType)[1][1])
             setStatus("Loading......." + 100 + "%........")
         }
     );
+}
+function initImgObj(imgObjType: ImgObjectType, totalCount: number) {
+    switch (imgObjType) {
+        case ImgObjectType.DEPTH_PLANE:
+            for (let i = 1; i <= totalCount; i++) {
+                tempObj[i] = [];
+            }
+            break;
+        case ImgObjectType.SKY_BOX:
+            for (let i = 1; i <= totalCount; i++) {
+                skyBoxObj[i] = [];
+            }
+            break;
+        default:
+            error("【getTempObj】Can't find Obj type:" + imgObjType);
+    }
+}
+function getImgObj(imgObjType: ImgObjectType) {
+    switch (imgObjType) {
+        case ImgObjectType.DEPTH_PLANE:
+            return tempObj;
+        case ImgObjectType.SKY_BOX:
+            return skyBoxObj;
+        default:
+            error("【getTempObj】Can't find Obj type:" + imgObjType);
+            return {};
+    }
 }
