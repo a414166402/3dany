@@ -5,7 +5,11 @@ import { Analytics } from "@vercel/analytics/react";
 import { ClerkProvider } from "@clerk/nextjs";
 import { Inter } from "next/font/google";
 import type { Metadata } from "next";
-
+import { Suspense } from "react";
+import GTMAnalytics from "@/components/GTMAnalytics";
+import GoogleAnalytics from '@/components/googleAnalytics';
+// pages/_document.js
+import Document, { Html, Head, Main, NextScript } from 'next/document';
 const inter = Inter({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
@@ -22,8 +26,13 @@ export default function RootLayout({
   return (
     <ClerkProvider>
       <html lang="en">
+        <GoogleAnalytics />
         <Script defer src="https://us.umami.is/script.js" data-website-id={process.env.NEXT_PUBLIC_UMAMI_KEY}></Script>
         <body className={inter.className}>
+          <Suspense>
+            <GTMAnalytics />
+          </Suspense>
+          
           <Script
             src="/enable-threads.js"
           />
