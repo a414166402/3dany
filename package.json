@@ -46,6 +46,7 @@
     "uuid": "^9.0.1"
   },
   "devDependencies": {
+    "@types/gtag.js": "^0.0.18",
     "@types/jquery": "^3.5.29",
     "@types/node": "^20",
     "@types/pg": "^8.11.0",
