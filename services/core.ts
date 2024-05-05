@@ -628,7 +628,7 @@ export async function setSkyBox(selectedName: SkyBoxName) {
 //获取depth_estimator单例
 export async function getDepthEstimator() {
     if (!depth_estimator) {
-        depth_estimator = await pipeline('depth-estimation', 'Xenova/depth-anything-base-hf', {
+        depth_estimator = await pipeline('depth-estimation', 'Xenova/depth-anything-small-hf', {
             quantized: QUANTIZED,
             session_options: {
                 executionProviders: [executionProvidersStr]
@@ -650,7 +650,6 @@ export async function prepareDepth() {
     const arr = new Uint8ClampedArray(w * h * c);
     let depth_estimator = await getDepthEstimator();
     await depth_estimator(new RawImage(arr, w, h, c));
-    setStatus('Ready'); // 更新状态为Ready
 }
 
 function getOffCanvas() {
@@ -1009,11 +1008,11 @@ function setupScene(canvasHeight: number, canvasWeight: number) {
             if (controls)
                 controls.update();
 
-            // if (uiScene && uiCamera) {
-            //     // 将HUD场景使用正交相机进行渲染
-            //     renderer.autoClear = false;
-            //     renderer.render(uiScene, uiCamera);
-            // }
+            if (uiScene && uiCamera) {
+                // 将HUD场景使用正交相机进行渲染
+                renderer.autoClear = false;
+                renderer.render(uiScene, uiCamera);
+            }
         });
     }
     //添加摄像头刷新事件

@@ -15,7 +15,7 @@ export default function () {
           </div>
           <div className="flex grow flex-row flex-wrap lg:mx-10 lg:flex-nowrap lg:justify-center">
             <div className="my-5 mr-8 flex max-w-[200px] grow basis-[100px] flex-col space-y-5 lg:mx-10 lg:mt-0">
-              <p className="font-inter font-medium text-black">其他作品</p>
+              <p className="font-inter font-medium text-black">Other Products</p>
               {/* <a
                 href="https://gpts.works"
                 target="_blank"
@@ -27,9 +27,16 @@ export default function () {
           </div>
           <div className="mt-10 flex flex-col lg:mt-0">
             <div className="mb-4 flex flex-row items-center">
-              <p className="block">联系作者: </p>
+              <p className="block">Contact Us: </p>
               <p className="font-inter ml-4 text-black">support@{process.env.NEXT_PUBLIC_THIS_WEB_URL}</p>
             </div>
+            <a
+              href="https://discord.gg/fCqyGNxv"
+              target="_blank"
+              className="font-inter font-light text-gray-500"
+            >
+              Discord For Help
+            </a>
           </div>
         </div>
         <div className="mx-auto my-12 w-full border border-[#E4E4E7] lg:my-20"></div>

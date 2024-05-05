@@ -9,13 +9,17 @@ import { log, warn, error } from '@/lib/log';
 import { toast } from "sonner";
 export default function () {
   // 状态管理
-  const [status, setStatus] = useState('Warming up...');
+  const [status, setStatus] = useState('Loading...【Tips】The first load will take more time');
+  const [isClickable, setIsClickable] = useState(true);
+  let clickStr = "Click to upload image/video";
   setInputSetStatus(setStatus);
   useEffect(() => {
     // 定义一个异步函数来进行你的异步操作
     const loadModel = async () => {
       await prepareDepth();
+      setStatus("Ready");
       // setStatus('Ready'); // 更新状态为Ready
+      setIsClickable(false);
     };
 
     loadModel(); // 调用异步函数
@@ -95,14 +99,16 @@ export default function () {
 
   return (
     <div className="flex flex-col items-center justify-center h-full p-4">
+      {!isClickable && (
+        <div id="container" className="relative flex flex-col items-center justify-center w-full sm:w-[50vw] md:w-[75vw] lg:max-w-[1080px] h-[calc(100vw*2/3)] sm:h-[calc(50vw*2/3)] md:h-[calc(75vw*2/3)] lg:max-h-[720px] border-2 border-dashed border-gray-300 rounded-lg overflow-hidden mt-4 bg-cover bg-center bg-no-repeat">
+          <label htmlFor="upload" className="flex flex-col items-center justify-center gap-1 cursor-pointer text-lg">
+            {/* SVG 图标 */}
+            {clickStr}
+            {/* <span id="example" onClick={handleExampleClick} className="text-sm underline cursor-pointer hover:text-blue-600">(or try example)</span> */}
+          </label>
+        </div>
+      )}
 
-      <div id="container" className="relative flex flex-col items-center justify-center w-full sm:w-[50vw] md:w-[75vw] lg:max-w-[1080px] h-[calc(100vw*2/3)] sm:h-[calc(50vw*2/3)] md:h-[calc(75vw*2/3)] lg:max-h-[720px] border-2 border-dashed border-gray-300 rounded-lg overflow-hidden mt-4 bg-cover bg-center bg-no-repeat">
-        <label htmlFor="upload" className="flex flex-col items-center justify-center gap-1 cursor-pointer text-lg">
-          {/* SVG 图标 */}
-          Click to upload image/video
-          <span id="example" onClick={handleExampleClick} className="text-sm underline cursor-pointer hover:text-blue-600">(or try example)</span>
-        </label>
-      </div>
       <div id="container2" className="hidden relative flex flex-col items-center justify-center w-full sm:w-[50vw] md:w-[75vw] lg:max-w-[1080px] h-[calc(100vw*2/3)] sm:h-[calc(50vw*2/3)] md:h-[calc(75vw*2/3)] lg:max-h-[720px] border-2 border-dashed border-gray-300 rounded-lg overflow-hidden mt-4 bg-cover bg-center bg-no-repeat">
         <ThreeScene />
       </div>
