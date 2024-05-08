@@ -6,14 +6,14 @@ export default authMiddleware({
 
   afterAuth(auth, req, evt) {
     if (!auth.userId && !auth.isPublicRoute) {
-      if (auth.isApiRoute) {
-        return NextResponse.json(
-          { code: -2, message: "no auth" },
-          { status: 401 }
-        );
-      } else {
+      // if (auth.isApiRoute) {
+      //   return NextResponse.json(
+      //     { code: -2, message: "no auth" },
+      //     { status: 401 }
+      //   );
+      // } else {
         return NextResponse.redirect(new URL("/sign-in", req.url));
-      }
+      // }
     }
 
     return NextResponse.next();
