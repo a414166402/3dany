@@ -20,8 +20,8 @@ export default function googleAnalytics(){
     return (
         <>
             <Script strategy="afterInteractive" 
-                src={`https://www.googletagmanager.com/gtag/js?id=${GA_MEASUREMENT_ID}`}/>
-            <Script id='google-analytics' strategy="afterInteractive"
+                src={`https://www.googletagmanager.com/gtag/js?id=${GA_MEASUREMENT_ID}`} defer />
+            <Script id='google-analytics' strategy="afterInteractive" defer 
                 dangerouslySetInnerHTML={{
                 __html: `
                 window.dataLayer = window.dataLayer || [];

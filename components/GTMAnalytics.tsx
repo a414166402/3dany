@@ -29,6 +29,7 @@ export default function GTMAnalytics() {
       <Script
         id="gtm-script"
         strategy="afterInteractive"
+        defer
         dangerouslySetInnerHTML={{
           __html: `
     (function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start':
