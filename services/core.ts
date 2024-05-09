@@ -139,6 +139,9 @@ export function setCanvas(cv: any) {
     canvas = cv;
 }
 
+export function getGUI(){
+    return gui;
+}
 export function setGUI(temp_gui: GUI, params: any, relightMode: any) {
     gui = temp_gui;
     guiParams = params;
@@ -643,8 +646,7 @@ export async function prepareDepth() {
     //确保只执行一次
     if (isPrepareDepth) return;
     isPrepareDepth = true;
-    if (IS_DEV_MODE == 1)
-        warn("-------------------------prepareDepth------------------------------")
+    warn("-------------------------prepareDepth------------------------------")
     const [w, h] = [224, 224];
     const c = 3;
     const arr = new Uint8ClampedArray(w * h * c);
