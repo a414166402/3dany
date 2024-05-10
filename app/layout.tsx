@@ -27,7 +27,7 @@ export default function RootLayout({
     <ClerkProvider>
       <html lang="en">
         <GoogleAnalytics />
-        <Script defer src="https://us.umami.is/script.js" data-website-id={process.env.NEXT_PUBLIC_UMAMI_KEY}></Script>
+        <Script src="https://us.umami.is/script.js" data-website-id={process.env.NEXT_PUBLIC_UMAMI_KEY}></Script>
         <body className={inter.className}>
           <Suspense>
             <GTMAnalytics />
