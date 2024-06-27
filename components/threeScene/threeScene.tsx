@@ -192,7 +192,7 @@ const initWeb = (containerRef: React.RefObject<HTMLDivElement>) => {
       }
     });
 
-    skyboxFolder.add(params, 'selectSkyBox',[SkyBoxName.SUNNY_SKY,SkyBoxName.BIG_ROOM,SkyBoxName.BANGKOK,SkyBoxName.ANIME_CIVILLIZATION,SkyBoxName.WET_COBBLESTONE,SkyBoxName.BROKEN_CITY,SkyBoxName.WARM_HOME,SkyBoxName.LINE_ROOM,SkyBoxName.CAVERN_CONCEPT,SkyBoxName.ICELAND_LANDSCAPE]).name('Select Skybox').onChange(function () {
+    skyboxFolder.add(params, 'selectSkyBox',[SkyBoxName.DIY,SkyBoxName.SUNNY_SKY,SkyBoxName.BIG_ROOM,SkyBoxName.BANGKOK,SkyBoxName.ANIME_CIVILLIZATION,SkyBoxName.WET_COBBLESTONE,SkyBoxName.BROKEN_CITY,SkyBoxName.WARM_HOME,SkyBoxName.LINE_ROOM,SkyBoxName.CAVERN_CONCEPT,SkyBoxName.ICELAND_LANDSCAPE]).name('Select Skybox').onChange(function () {
       let selectedName = params.selectSkyBox;
       setSkyBox(selectedName);
     });
@@ -207,7 +207,7 @@ const initWeb = (containerRef: React.RefObject<HTMLDivElement>) => {
   console.warn(gui);
   gui.open(); // Open the GUI
   return () => {
-    gui.destroy(); // 在组件卸载时销毁 GUI
+    // gui.destroy(); // 在组件卸载时销毁 GUI
   };
 }
 const ThreeScene: React.FC = () => {

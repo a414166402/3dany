@@ -1,6 +1,6 @@
 'use client'
 
-import { pipeline, env, DepthEstimationPipeline, RawImage } from "@a414166402/3dany";
+import { pipeline, env, DepthEstimationPipeline, RawImage, AutoModel, AutoProcessor } from "@a414166402/3dany";
 // log("e-------------nv.backends.onnx-=--------");
 // log(env);
 // log(env.backends);
@@ -18,54 +18,54 @@ import { ImgObjectType, CameraUsage, CameraType, SkyBoxName } from './GlobalEnum
 import { DragControls } from 'three/examples/jsm/controls/DragControls.js';
 
 
-interface NavigatorWithGPU extends Navigator {
-    gpu?: any;
-}
-let USE_WEBGPU = false;
-if (typeof navigator !== 'undefined') {
-    const navigatorWithGPU = navigator as NavigatorWithGPU;
-    if ('gpu' in navigatorWithGPU) {
-        console.log('WebGPU is supported');
-        USE_WEBGPU = true;
-    } else {
-        // WebGPU is not supported
-        console.error('WebGPU is not supported');
-        toast.error('WebGPU is not supported');
-    }
-} else {
-    console.error('navigator is undefined');
-    toast.error('navigator is undefined');
-}
+// interface NavigatorWithGPU extends Navigator {
+//     gpu?: any;
+// }
+let USE_WEBGPU = true;
+// if (typeof navigator !== 'undefined') {
+//     const navigatorWithGPU = navigator as NavigatorWithGPU;
+//     if ('gpu' in navigatorWithGPU) {
+//         console.log('WebGPU is supported');
+//         USE_WEBGPU = true;
+//     } else {
+//         // WebGPU is not supported
+//         console.error('WebGPU is not supported');
+//         toast.error('WebGPU is not supported');
+//     }
+// } else {
+//     console.error('navigator is undefined');
+//     toast.error('navigator is undefined');
+// }
 
 
-//修复ONNX核心 强制使用web环境
-let ONNX;
-const ONNX_MODULES = new Map();
-// @ts-ignore
-ONNX = ONNX_WEB.default ?? ONNX_WEB;
-ONNX_MODULES.set('web', ONNX);
-// Running in a browser-environment
-const isIOS = typeof navigator !== 'undefined' && /iP(hone|od|ad).+16_4.+AppleWebKit/.test(navigator.userAgent);
-if (isIOS) {
-    ONNX.env.wasm.simd = false;
-}
-if (ONNX?.env?.wasm) {
-    // Set path to wasm files. This is needed when running in a web worker.
-    // https://onnxruntime.ai/docs/api/js/interfaces/Env.WebAssemblyFlags.html#wasmPaths
-    // We use remote wasm files by default to make it easier for newer users.
-    // In practice, users should probably self-host the necessary .wasm files.
-    ONNX.env.wasm.wasmPaths = `https://cdn.jsdelivr.net/npm/onnxruntime-web@1.17.1/dist/`;
-}
+// //修复ONNX核心 强制使用web环境
+// let ONNX;
+// const ONNX_MODULES = new Map();
+// // @ts-ignore
+// ONNX = ONNX_WEB.default ?? ONNX_WEB;
+// ONNX_MODULES.set('web', ONNX);
+// // Running in a browser-environment
+// const isIOS = typeof navigator !== 'undefined' && /iP(hone|od|ad).+16_4.+AppleWebKit/.test(navigator.userAgent);
+// if (isIOS) {
+//     ONNX.env.wasm.simd = false;
+// }
+// if (ONNX?.env?.wasm) {
+//     // Set path to wasm files. This is needed when running in a web worker.
+//     // https://onnxruntime.ai/docs/api/js/interfaces/Env.WebAssemblyFlags.html#wasmPaths
+//     // We use remote wasm files by default to make it easier for newer users.
+//     // In practice, users should probably self-host the necessary .wasm files.
+//     ONNX.env.wasm.wasmPaths = `https://cdn.jsdelivr.net/npm/onnxruntime-web@1.17.1/dist/`;
+// }
 // ONNX.env.wasm = { proxy: true };
 // ONNX.env.wasmPaths = ['https://cdn.jsdelivr.net/npm/onnxruntime-web@1.17.1/dist/'];
-if (USE_WEBGPU) {
-    ONNX.env.numThreads = 1;
-    env.backends.onnx = ONNX.env;
-    env.experimental.useWebGPU = true;
-} else {
-    env.allowLocalModels = false;
-    // env.backends.onnx.wasm.proxy = true;
-}
+// if (USE_WEBGPU) {
+//     ONNX.env.numThreads = 1;
+//     env.backends.onnx = ONNX.env;
+//     // env.experimental.useWebGPU = true;
+// } else {
+//     env.allowLocalModels = false;
+//     // env.backends.onnx.wasm.proxy = true;
+// }
 
 
 
@@ -119,7 +119,7 @@ let firstCanvasHeight: number;
 let video: HTMLVideoElement;
 let offscreenCanvas: any;
 let canvas: any;
-//{id:[img,depth,texture]}
+//{id:[img,depth,texture]} 第一个元素貌似没被使用到 暂时作为rawImg
 let tempObj: { [key: number]: any[] } = {}
 //{id:[img,depth,texture]}
 let skyBoxObj: { [key: number]: any[] } = {}
@@ -130,8 +130,8 @@ let isLoadDepth = false;//是否开启读取本地深度图模式
 let isLoadRawImg = false;//是否开启读取本地RawImg格式的图片 影响深度图的获取
 let isLoadTexture = false;//是否开启读取本地图片Texture 影响图片的正确显示
 const QUANTIZED = false;
-let executionProvidersStr = USE_WEBGPU ? 'webgpu' : 'wasm';
-let depth_estimator: DepthEstimationPipeline | null = null;
+// let executionProvidersStr = USE_WEBGPU ? 'webgpu' : 'wasm';
+let depth_estimator: any = null; //DepthEstimationPipeline
 export function getCanvas(): any {
     return canvas;
 }
@@ -573,6 +573,56 @@ export async function setSkyBox(selectedName: SkyBoxName) {
         if(skybox){
             scene.remove(skybox);
         }
+    }else if(selectedName == SkyBoxName.DIY){
+        if(skybox){
+            scene.remove(skybox);
+        }
+        isDepthSkybox = true;
+        currentImgObjType = ImgObjectType.SKY_BOX;
+
+        resetCameraPos();
+        initImgObj(ImgObjectType.SKY_BOX, 1);
+        // 创建一个天空盒材质
+        let skyTexture = getImgObj(ImgObjectType.DEPTH_PLANE)[1][2]
+        const skyboxMaterial = new THREE.MeshStandardMaterial({
+            side: THREE.DoubleSide, // 设置材质为背面渲染
+            map: skyTexture // 加载天空盒贴图
+        });
+        // 创建一个天空盒几何体
+        // const skyboxGeometry = new THREE.BoxGeometry(10000, 10000, 10000); // 设置天空盒的尺寸
+        const skyboxGeometry = new THREE.SphereGeometry(10, 1000, 1000,-Math.PI/2,2*Math.PI,0,Math.PI);
+        
+        //动态设置材质比例
+        setSkyboxDisplacementScale = (scale: any) => {
+            skyboxMaterial.displacementScale = scale;
+            skyboxMaterial.needsUpdate = true;
+        }
+        let rawImgArr = [getImgObj(ImgObjectType.DEPTH_PLANE)[1][0]];
+        depthRawImg(rawImgArr).then(
+            () => {
+                if(isDepthSkybox){
+                    warn('done');
+                    let skyDepth = skyBoxObj[1][1];
+                    refreshImg(skyTexture,skyDepth);
+                    setStatus("Loading SkyBox......." + 100 + "%........")
+                    skyboxMaterial.displacementMap = new THREE.CanvasTexture(skyDepth.toCanvas());
+                    skyboxMaterial.displacementScale = 2;
+                    skyboxMaterial.needsUpdate = true;
+                    skyboxGeometry.scale(1, 1, -1); // 反转UV映射以在内部显示贴图
+                
+                    // 创建一个天空盒网格对象
+                    skybox = new THREE.Mesh(skyboxGeometry, skyboxMaterial);
+                
+                    // 将天空盒添加到场景中
+                    scene.add(skybox);
+        
+                    //执行完全部图片后再调用这个 清空状态
+                    hasInvertedDepth = false;
+                    isDepthSkybox = false;
+                    currentImgObjType = ImgObjectType.DEPTH_PLANE;
+                }
+            }
+        );
     }else{
         if(skybox){
             scene.remove(skybox);
@@ -591,7 +641,7 @@ export async function setSkyBox(selectedName: SkyBoxName) {
         // 创建一个天空盒几何体
         // const skyboxGeometry = new THREE.BoxGeometry(10000, 10000, 10000); // 设置天空盒的尺寸
         const skyboxGeometry = new THREE.SphereGeometry(10, 1000, 1000,-Math.PI/2,2*Math.PI,0,Math.PI);
-    
+        
         //动态设置材质比例
         setSkyboxDisplacementScale = (scale: any) => {
             skyboxMaterial.displacementScale = scale;
@@ -627,17 +677,41 @@ export async function setSkyBox(selectedName: SkyBoxName) {
         );
     }
 }
-
-//获取depth_estimator单例
-export async function getDepthEstimator() {
-    if (!depth_estimator) {
-        depth_estimator = await pipeline('depth-estimation', 'Xenova/depth-anything-small-hf', {
-            quantized: QUANTIZED,
-            session_options: {
-                executionProviders: [executionProvidersStr]
-            }
-        });
+async function hasFp16() {
+    try {
+        // const adapter = await navigator.gpu.requestAdapter()
+        // return adapter?.features.has('shader-f16')
+        return true;
+    } catch (e) {
+        return false
     }
+}
+//获取depth_estimator单例  Xenova/depth-anything-small-hf 版本1  onnx-community/depth-anything-v2-small版本2
+export async function getDepthEstimator() {
+    // if (!depth_estimator) {
+    //     depth_estimator = await pipeline('depth-estimation', 'onnx-community/depth-anything-v2-small', {
+    //         quantized: QUANTIZED,
+    //         session_options: {
+    //             executionProviders: [executionProvidersStr]
+    //         }
+    //     });
+    // }
+    try {
+        // const model_id = 'onnx-community/Xenova/depth-anything-small-hf';
+        const model_id = 'onnx-community/depth-anything-v2-small';
+        const dtype = (await hasFp16()) ? 'fp16' : 'fp32';
+
+        depth_estimator = await pipeline("depth-estimation", model_id, {
+            dtype: dtype,
+            device: 'webgpu'
+        });
+
+        console.log("Depth estimator initialized successfully.");
+    } catch (error) {
+        console.error("Failed to initialize depth estimator:", error);
+        // 你可以在这里添加更多的错误处理逻辑，比如显示错误信息给用户
+    }
+
 
     return depth_estimator;
 }
@@ -695,7 +769,8 @@ async function processBatch(batch: any, batchOption: any) {
         const end = performance.now();
         let webGPUTime = end - start;
         warn("获取深度图成功:" + depthResults)
-        warn(executionProvidersStr + "耗时:" + Math.round(webGPUTime) + 'ms')
+        // warn(executionProvidersStr + "耗时:" + Math.round(webGPUTime) + 'ms')
+        warn("耗时:" + Math.round(webGPUTime) + 'ms')
         curStatus += perStatus;
         Number(curStatus.toFixed(2));
         setStatus("Loading......." + curStatus + "%........")
@@ -753,7 +828,8 @@ async function depthRawImg(rawImgArr: any[]) {
         }
         const end = performance.now();
         let depthTime = end - start;
-        warn(executionProvidersStr + "总耗时:" + Math.round(depthTime) + 'ms')
+        // warn(executionProvidersStr + "总耗时:" + Math.round(depthTime) + 'ms')
+        warn("总耗时:" + Math.round(depthTime) + 'ms')
         return true;
     } catch (err) {
         error("深度图请求处理失败！err:" + err);
@@ -1220,6 +1296,7 @@ export async function dealImg(img: any) {
     initCanvas();
     getRawImg(img, rawImgArr);
     await loadTexture(0);
+    getImgObj(currentImgObjType)[1][0] = rawImgArr[0];
     depthRawImg(rawImgArr).then(
         () => {
             warn('done');

@@ -21,5 +21,6 @@ export enum SkyBoxName{
     LINE_ROOM = "LINE_ROOM",
     CAVERN_CONCEPT = "CAVERN_CONCEPT",
     ICELAND_LANDSCAPE = "ICELAND_LANDSCAPE",
-    NONE = "NONE"
+    NONE = "NONE",
+    DIY = "DIY"
 }

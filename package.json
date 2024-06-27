@@ -9,7 +9,7 @@
     "lint": "next lint"
   },
   "dependencies": {
-    "@a414166402/3dany": "^1.0.0",
+    "@a414166402/3dany": "^1.0.2",
     "@clerk/nextjs": "^4.29.5",
     "@heroicons/react": "^2.1.1",
     "@langchain/core": "^0.1.48",
