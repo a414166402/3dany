@@ -28,6 +28,7 @@ export default function RootLayout({
       <html lang="en">
         <GoogleAnalytics />
         <Script src="https://us.umami.is/script.js" data-website-id={process.env.NEXT_PUBLIC_UMAMI_KEY}></Script>
+        <Script src="https://us.umami.is/script.js" data-website-id={process.env.NEXT_PUBLIC_MY_UMAMI_KEY}></Script>
         <body className={inter.className}>
           <Suspense>
             <GTMAnalytics />
